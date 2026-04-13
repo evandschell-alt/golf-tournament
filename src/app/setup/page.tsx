@@ -125,12 +125,12 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1.5rem_2.5rem_4rem_4rem_4rem] sm:grid-cols-[2rem_3rem_1fr_1fr_1fr] justify-items-center gap-2 text-xs font-semibold text-green-700 mx-auto w-fit sm:w-full">
-        <span>#</span>
-        <span>Par</span>
-        <span>Blue</span>
-        <span>White</span>
-        <span>Red</span>
+      <div className="grid grid-cols-[1.5rem_2.5rem_1fr_1fr_1fr] gap-2 text-xs font-semibold text-green-700">
+        <span className="text-left">#</span>
+        <span className="text-left">Par</span>
+        <span className="text-center">Blue</span>
+        <span className="text-center">White</span>
+        <span className="text-center">Red</span>
       </div>
 
       {/* Hole rows */}
@@ -138,9 +138,9 @@ function CourseStep({
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[1.5rem_2.5rem_4rem_4rem_4rem] sm:grid-cols-[2rem_3rem_1fr_1fr_1fr] justify-items-center gap-2 items-center mx-auto w-fit sm:w-full"
+            className="grid grid-cols-[1.5rem_2.5rem_1fr_1fr_1fr] gap-2 items-center"
           >
-            <span className="text-sm font-bold text-green-900 text-center">
+            <span className="text-sm font-bold text-green-900 text-left">
               {hole.hole_number}
             </span>
             <select
