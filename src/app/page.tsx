@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-green-50 px-6">
@@ -18,12 +20,19 @@ export default function Home() {
               3 Rounds &middot; 3 Formats &middot; 1 Champion
             </p>
           </div>
+
+          <Link
+            href="/setup"
+            className="block w-full rounded-xl bg-green-700 py-4 text-base font-semibold text-white text-center shadow-sm hover:bg-green-800 transition-colors"
+          >
+            Set Up Tournament
+          </Link>
         </div>
 
         <p className="text-sm text-green-600 max-w-xs">
-          Live scoring and leaderboard coming soon. Stay tuned.
+          Live scoring and leaderboard coming soon.
         </p>
       </main>
     </div>
-  );
+  )
 }
