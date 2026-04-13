@@ -10,7 +10,7 @@ type TournamentWithCourse = {
   year: number
   date: string | null
   current_round: number
-  courses: { name: string } | null
+  courses: { name: string } | { name: string }[] | null
   teams: { id: string; name: string }[]
 }
 
@@ -102,14 +102,14 @@ export default function Home() {
                 key={t.id}
                 className="rounded-xl bg-white p-4 shadow-sm border border-green-200"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
+                <div className="flex flex-col gap-3">
+                  <div>
                     <h3 className="font-bold text-green-900 text-lg">
                       {t.name} {t.year}
                     </h3>
                     {t.courses && (
                       <p className="text-sm text-green-600 mt-0.5">
-                        {t.courses.name}
+                        {Array.isArray(t.courses) ? t.courses[0]?.name : t.courses.name}
                       </p>
                     )}
                     {t.date && (
@@ -127,7 +127,13 @@ export default function Home() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/tournament/${t.id}/pairings`}
+                      className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
+                    >
+                      R2 Pairings
+                    </Link>
                     <Link
                       href={`/setup?edit=${t.id}`}
                       className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
