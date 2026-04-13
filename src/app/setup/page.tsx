@@ -125,12 +125,12 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[3rem_3.5rem_1fr_1fr_1fr] gap-2 text-xs font-semibold text-green-700 px-1">
-        <span>Hole</span>
-        <span>Par</span>
-        <span>White</span>
-        <span>Blue</span>
-        <span>Red</span>
+      <div className="grid grid-cols-[2.5rem_3.5rem_1fr_1fr_1fr] gap-1.5 text-xs font-semibold text-green-700">
+        <span className="text-center">Hole</span>
+        <span className="text-center">Par</span>
+        <span className="text-center">Blue</span>
+        <span className="text-center">White</span>
+        <span className="text-center">Red</span>
       </div>
 
       {/* Hole rows */}
@@ -138,7 +138,7 @@ function CourseStep({
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[3rem_3.5rem_1fr_1fr_1fr] gap-2 items-center"
+            className="grid grid-cols-[2.5rem_3.5rem_1fr_1fr_1fr] gap-1.5 items-center"
           >
             <span className="text-sm font-bold text-green-900 text-center">
               {hole.hole_number}
@@ -146,7 +146,7 @@ function CourseStep({
             <select
               value={hole.par}
               onChange={(e) => updateHole(i, "par", parseInt(e.target.value))}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="rounded-lg border border-green-300 px-1 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value={3}>3</option>
               <option value={4}>4</option>
@@ -154,23 +154,23 @@ function CourseStep({
             </select>
             <input
               type="number"
-              value={hole.yardage_white}
-              onChange={(e) => updateHole(i, "yardage_white", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              value={hole.yardage_blue}
+              onChange={(e) => updateHole(i, "yardage_blue", e.target.value)}
+              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
             <input
               type="number"
-              value={hole.yardage_blue}
-              onChange={(e) => updateHole(i, "yardage_blue", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              value={hole.yardage_white}
+              onChange={(e) => updateHole(i, "yardage_white", e.target.value)}
+              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
             <input
               type="number"
               value={hole.yardage_red}
               onChange={(e) => updateHole(i, "yardage_red", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
           </div>
@@ -514,7 +514,7 @@ export default function SetupPage() {
   if (savedTournamentId) {
     return (
       <div className="flex flex-col flex-1 bg-green-50 px-4 py-6">
-        <div className="w-full max-w-lg mx-auto">
+        <div className="w-full max-w-2xl mx-auto">
           <SuccessScreen tournamentId={savedTournamentId} />
         </div>
       </div>
@@ -523,7 +523,7 @@ export default function SetupPage() {
 
   return (
     <div className="flex flex-col flex-1 bg-green-50 px-4 py-6">
-      <div className="w-full max-w-lg mx-auto">
+      <div className="w-full max-w-2xl mx-auto">
         {/* Progress indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
           {[1, 2, 3].map((s) => (
