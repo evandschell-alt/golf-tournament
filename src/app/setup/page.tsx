@@ -125,20 +125,20 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[2.5rem_3.5rem_1fr_1fr_1fr] gap-1.5 text-xs font-semibold text-green-700">
-        <span className="text-center">Hole</span>
-        <span className="text-center">Par</span>
-        <span className="text-center">Blue</span>
-        <span className="text-center">White</span>
-        <span className="text-center">Red</span>
+      <div className="grid grid-cols-[1.5rem_2.5rem_4rem_4rem_4rem] sm:grid-cols-[2rem_3rem_1fr_1fr_1fr] justify-items-center gap-2 text-xs font-semibold text-green-700 mx-auto w-fit sm:w-full">
+        <span>#</span>
+        <span>Par</span>
+        <span>Blue</span>
+        <span>White</span>
+        <span>Red</span>
       </div>
 
       {/* Hole rows */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[2.5rem_3.5rem_1fr_1fr_1fr] gap-1.5 items-center"
+            className="grid grid-cols-[1.5rem_2.5rem_4rem_4rem_4rem] sm:grid-cols-[2rem_3rem_1fr_1fr_1fr] justify-items-center gap-2 items-center mx-auto w-fit sm:w-full"
           >
             <span className="text-sm font-bold text-green-900 text-center">
               {hole.hole_number}
@@ -146,7 +146,7 @@ function CourseStep({
             <select
               value={hole.par}
               onChange={(e) => updateHole(i, "par", parseInt(e.target.value))}
-              className="rounded-lg border border-green-300 px-1 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value={3}>3</option>
               <option value={4}>4</option>
@@ -156,21 +156,21 @@ function CourseStep({
               type="number"
               value={hole.yardage_blue}
               onChange={(e) => updateHole(i, "yardage_blue", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
             <input
               type="number"
               value={hole.yardage_white}
               onChange={(e) => updateHole(i, "yardage_white", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
             <input
               type="number"
               value={hole.yardage_red}
               onChange={(e) => updateHole(i, "yardage_red", e.target.value)}
-              className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Yds"
             />
           </div>
