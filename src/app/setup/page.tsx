@@ -107,7 +107,7 @@ function CourseStep({
   const allParsEntered = holes.every((h) => h.par >= 3 && h.par <= 6)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 overflow-x-hidden">
       <div>
         <h2 className="text-2xl font-bold text-green-900">Course Setup</h2>
         <p className="text-sm text-green-700 mt-1">Enter the course name and details for each hole. Par is required; yardages are optional.</p>
