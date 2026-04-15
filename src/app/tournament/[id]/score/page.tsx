@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react"
 import { supabase } from "@/lib/supabase"
 import { round1HolePoints, stablefordPoints, scoreLabel } from "@/lib/scoring"
-import Link from "next/link"
+import BottomNav from "@/components/BottomNav"
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
@@ -33,8 +33,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
   // Moneyball tracking: which hole was the moneyball used on (if any)
   const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
-  const [showScorecard, setShowScorecard] = useState(false)
   const [teeBox, setTeeBox] = useState<string>("white")
+  const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -312,35 +312,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     return total
   }
 
-  // Count completed holes
-  function getCompletedHoles(): number {
-    let count = 0
-    holes.forEach((hole) => {
-      const hs = scores[hole.hole_number]
-      if (!hs) return
-      const players = selectedTeam?.players || []
-      const allEntered = players.every((p) => hs[p.id]?.strokes > 0)
-      if (allEntered) count++
-    })
-    return count
-  }
-
-  // Get scorecard data for a hole (returns null if not completed)
-  function getScorecardHole(holeNumber: number): { bestScore: number; points: number } | null {
-    const hs = scores[holeNumber]
-    if (!hs) return null
-    const players = selectedTeam?.players || []
-    const allEntered = players.every((p) => hs[p.id]?.strokes > 0)
-    if (!allEntered) return null
-
-    const playerData = players.map((p) => ({
-      strokes: hs[p.id].strokes,
-      moneyball_used: hs[p.id].moneyball_used,
-      moneyball_lost: hs[p.id].moneyball_lost,
-    }))
-    const result = round1HolePoints(playerData, holes.find((h) => h.hole_number === holeNumber)!.par)
-    return { bestScore: result.bestScore, points: result.points }
-  }
 
   // Loading state
   if (loading) {
@@ -354,31 +325,30 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   // Team selection screen
   if (!selectedTeam) {
     return (
-      <div className="flex flex-col flex-1 bg-green-50 px-4 py-6">
-        <div className="w-full max-w-md mx-auto">
-          <Link href="/" className="text-sm text-green-600 hover:text-green-800 mb-4 inline-block">
-            &larr; Back to Home
-          </Link>
+      <div className="flex flex-col flex-1 bg-green-50">
+        <div className="flex-1 px-4 py-8">
+          <div className="max-w-md mx-auto">
+            <h1 className="text-2xl font-bold text-green-900 mb-1">Enter Scores</h1>
+            <p className="text-sm text-green-700 mb-1">{tournamentName} &middot; Round {roundNumber}</p>
+            <p className="text-sm text-green-600 mb-6">Select your team to begin entering scores.</p>
 
-          <h1 className="text-2xl font-bold text-green-900 mb-1">Enter Scores</h1>
-          <p className="text-sm text-green-700 mb-1">{tournamentName} &middot; Round {roundNumber}</p>
-          <p className="text-sm text-green-600 mb-6">Select your team to begin entering scores.</p>
-
-          <div className="flex flex-col gap-3">
-            {teams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => setSelectedTeam(team)}
-                className="rounded-xl bg-white border-2 border-green-200 p-4 text-left hover:border-green-500 transition-colors"
-              >
-                <h3 className="font-bold text-green-900 text-lg">{team.name}</h3>
-                <p className="text-sm text-green-600 mt-1">
-                  {team.players.map((p) => p.name).join(", ")}
-                </p>
-              </button>
-            ))}
+            <div className="flex flex-col gap-3">
+              {teams.map((team) => (
+                <button
+                  key={team.id}
+                  onClick={() => setSelectedTeam(team)}
+                  className="rounded-xl bg-white border-2 border-green-200 p-4 text-left hover:border-green-500 transition-colors"
+                >
+                  <h3 className="font-bold text-green-900 text-lg">{team.name}</h3>
+                  <p className="text-sm text-green-600 mt-1">
+                    {team.players.map((p) => p.name).join(", ")}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+        <BottomNav tournamentId={tournamentId} />
       </div>
     )
   }
@@ -415,20 +385,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             <p className="font-bold text-sm">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
             <p className="text-xs text-green-200 capitalize">{teeBox} Tees</p>
           </div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setShowScorecard(!showScorecard)}
-              className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-            >
-              {showScorecard ? "Scores" : "Card"}
-            </button>
-            <Link
-              href={`/tournament/${tournamentId}/leaderboard`}
-              className="text-xs bg-yellow-400 text-yellow-900 hover:bg-yellow-300 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-            >
-              Board
-            </Link>
-          </div>
           <div className="text-right">
             <p className="font-bold text-sm">{selectedTeam.name}</p>
             <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
@@ -436,194 +392,50 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* Scorecard view */}
-      {showScorecard && (
-        <div className="flex-1 px-4 py-4">
-          <div className="max-w-md mx-auto">
-            {/* Front 9 */}
-            <div className="rounded-xl bg-white border border-green-200 overflow-hidden mb-4">
-              <div className="bg-green-100 px-3 py-2">
-                <h3 className="font-bold text-green-900 text-sm">Front 9</h3>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-green-100">
-                    <th className="text-left px-3 py-1.5 text-xs text-green-600 font-semibold">Hole</th>
-                    {holes.filter((h) => h.hole_number <= 9).map((h) => (
-                      <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center w-[2rem]">
-                        {h.hole_number}
-                      </th>
-                    ))}
-                    <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-green-50">
-                    <td className="px-3 py-1.5 text-xs text-green-600">Par</td>
-                    {holes.filter((h) => h.hole_number <= 9).map((h) => (
-                      <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
-                    ))}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => sum + h.par, 0)}
-                    </td>
-                  </tr>
-                  <tr className="border-b border-green-50">
-                    <td className="px-3 py-1.5 text-xs text-green-600">Score</td>
-                    {holes.filter((h) => h.hole_number <= 9).map((h) => {
-                      const data = getScorecardHole(h.hole_number)
-                      return (
-                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${
-                          data ? (data.bestScore < h.par ? "text-red-600" : data.bestScore > h.par ? "text-blue-600" : "text-green-900") : "text-gray-300"
-                        }`}>
-                          {data ? data.bestScore : "–"}
-                        </td>
-                      )
-                    })}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => {
-                        const data = getScorecardHole(h.hole_number)
-                        return sum + (data ? data.bestScore : 0)
-                      }, 0) || "–"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-1.5 text-xs text-green-600">Pts</td>
-                    {holes.filter((h) => h.hole_number <= 9).map((h) => {
-                      const data = getScorecardHole(h.hole_number)
-                      return (
-                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
-                          data ? (data.points > 0 ? "text-green-700" : "text-gray-400") : "text-gray-300"
-                        }`}>
-                          {data ? data.points : "–"}
-                        </td>
-                      )
-                    })}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => {
-                        const data = getScorecardHole(h.hole_number)
-                        return sum + (data ? data.points : 0)
-                      }, 0)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Back 9 */}
-            <div className="rounded-xl bg-white border border-green-200 overflow-hidden mb-4">
-              <div className="bg-green-100 px-3 py-2">
-                <h3 className="font-bold text-green-900 text-sm">Back 9</h3>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-green-100">
-                    <th className="text-left px-3 py-1.5 text-xs text-green-600 font-semibold">Hole</th>
-                    {holes.filter((h) => h.hole_number > 9).map((h) => (
-                      <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center w-[2rem]">
-                        {h.hole_number}
-                      </th>
-                    ))}
-                    <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-green-50">
-                    <td className="px-3 py-1.5 text-xs text-green-600">Par</td>
-                    {holes.filter((h) => h.hole_number > 9).map((h) => (
-                      <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
-                    ))}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => sum + h.par, 0)}
-                    </td>
-                  </tr>
-                  <tr className="border-b border-green-50">
-                    <td className="px-3 py-1.5 text-xs text-green-600">Score</td>
-                    {holes.filter((h) => h.hole_number > 9).map((h) => {
-                      const data = getScorecardHole(h.hole_number)
-                      return (
-                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${
-                          data ? (data.bestScore < h.par ? "text-red-600" : data.bestScore > h.par ? "text-blue-600" : "text-green-900") : "text-gray-300"
-                        }`}>
-                          {data ? data.bestScore : "–"}
-                        </td>
-                      )
-                    })}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => {
-                        const data = getScorecardHole(h.hole_number)
-                        return sum + (data ? data.bestScore : 0)
-                      }, 0) || "–"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-1.5 text-xs text-green-600">Pts</td>
-                    {holes.filter((h) => h.hole_number > 9).map((h) => {
-                      const data = getScorecardHole(h.hole_number)
-                      return (
-                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
-                          data ? (data.points > 0 ? "text-green-700" : "text-gray-400") : "text-gray-300"
-                        }`}>
-                          {data ? data.points : "–"}
-                        </td>
-                      )
-                    })}
-                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => {
-                        const data = getScorecardHole(h.hole_number)
-                        return sum + (data ? data.points : 0)
-                      }, 0)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Total summary */}
-            <div className="rounded-xl bg-green-700 text-white p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">Round {roundNumber} Total</p>
-                <p className="text-xs text-green-200">{getCompletedHoles()} of 18 holes</p>
-              </div>
-              <p className="text-3xl font-bold">{getTotalPoints()} pts</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hole navigation + score entry (hidden when scorecard is shown) */}
-      {!showScorecard && (
       <div className="flex flex-col flex-1">
-      <div className="bg-white border-b border-green-200 px-4 py-2 overflow-x-auto">
-        <div className="max-w-md mx-auto flex gap-1">
-          {holes.map((h) => {
-            const hs = scores[h.hole_number]
-            const completed = hs && selectedTeam.players.every((p) => hs[p.id]?.strokes > 0)
-            return (
-              <button
-                key={h.hole_number}
-                onClick={() => {
-                  setCurrentHole(h.hole_number)
-                }}
-                className={`min-w-[2rem] h-8 rounded-full text-xs font-bold transition-colors ${
-                  h.hole_number === currentHole
-                    ? "bg-green-700 text-white"
-                    : completed
-                    ? "bg-green-200 text-green-800"
-                    : "bg-gray-100 text-gray-500"
-                }`}
-              >
-                {h.hole_number}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Hole info */}
+      {/* Hole info with dropdown */}
       <div className="px-4 pt-4 pb-2">
         <div className="max-w-md mx-auto">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-bold text-green-900">Hole {currentHole}</h2>
+            <div className="relative">
+              <button
+                onClick={() => setHoleDropdownOpen(!holeDropdownOpen)}
+                className="flex items-center gap-1.5 text-xl font-bold text-green-900 hover:text-green-700 transition-colors"
+              >
+                Hole {currentHole}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-5 h-5 transition-transform ${holeDropdownOpen ? "rotate-180" : ""}`}>
+                  <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              {/* Hole dropdown */}
+              {holeDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 bg-white rounded-xl border border-green-200 shadow-lg z-20 p-2 grid grid-cols-6 gap-1 w-[240px]">
+                  {holes.map((h) => {
+                    const hs = scores[h.hole_number]
+                    const completed = hs && selectedTeam.players.every((p) => hs[p.id]?.strokes > 0)
+                    return (
+                      <button
+                        key={h.hole_number}
+                        onClick={() => {
+                          setCurrentHole(h.hole_number)
+                          setHoleDropdownOpen(false)
+                        }}
+                        className={`h-8 rounded-lg text-xs font-bold transition-colors ${
+                          h.hole_number === currentHole
+                            ? "bg-green-700 text-white"
+                            : completed
+                            ? "bg-green-200 text-green-800"
+                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                      >
+                        {h.hole_number}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
               {getYardage(hole) && <span>{getYardage(hole)} yds</span>}
@@ -758,7 +570,16 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
       </div>
+
+      {/* Click outside to close dropdown */}
+      {holeDropdownOpen && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => setHoleDropdownOpen(false)}
+        />
       )}
+
+      <BottomNav tournamentId={tournamentId} />
     </div>
   )
 }

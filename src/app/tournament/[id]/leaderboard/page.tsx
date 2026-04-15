@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from "react"
 import { supabase } from "@/lib/supabase"
 import { round1HolePoints } from "@/lib/scoring"
-import Link from "next/link"
+import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
 type Hole = { hole_number: number; par: number }
@@ -177,15 +177,9 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   const hasScores = scores.length > 0
 
   return (
-    <div className="flex flex-col flex-1 bg-green-50 px-4 py-6">
+    <div className="flex flex-col flex-1 bg-green-50">
+      <div className="flex-1 px-4 py-6">
       <div className="w-full max-w-2xl mx-auto">
-        <Link
-          href="/"
-          className="text-sm text-green-600 hover:text-green-800 mb-4 inline-block"
-        >
-          &larr; Back to Home
-        </Link>
-
         {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-green-900">Leaderboard</h1>
@@ -300,6 +294,9 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
           </>
         )}
       </div>
+      </div>
+
+      <BottomNav tournamentId={tournamentId} />
     </div>
   )
 }
