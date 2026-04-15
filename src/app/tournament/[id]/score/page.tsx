@@ -196,7 +196,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     setScores({ ...scores, [holeNumber]: holeScores })
   }
 
-  // Save scores for the current hole
+  // Save scores for the current hole (always saves, even par defaults)
   async function saveHoleScores(holeNumber: number) {
     if (!selectedTeam) return
     setSaving(true)
@@ -204,9 +204,11 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     const holeScores = getHoleScores(holeNumber)
     const players = selectedTeam.players
 
+    // Persist into state so the hole shows as completed
+    setScores((prev) => ({ ...prev, [holeNumber]: holeScores }))
+
     for (const player of players) {
       const ps = holeScores[player.id]
-      if (!ps || ps.strokes <= 0) continue
 
       const { error } = await supabase
         .from("scores")
@@ -542,7 +544,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               <button
                 key={h.hole_number}
                 onClick={() => {
-                  if (allEntered) saveHoleScores(currentHole)
+                  saveHoleScores(currentHole)
                   setCurrentHole(h.hole_number)
                 }}
                 className={`min-w-[2rem] h-8 rounded-full text-xs font-bold transition-colors ${
@@ -674,7 +676,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             <button
               onClick={() => {
                 if (currentHole > 1) {
-                  if (allEntered) saveHoleScores(currentHole)
+                  saveHoleScores(currentHole)
                   setCurrentHole(currentHole - 1)
                 }
               }}
@@ -684,21 +686,14 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               &larr; Prev
             </button>
             <button
-              onClick={() => saveHoleScores(currentHole)}
-              disabled={!allEntered || saving}
-              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-50 transition-colors"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-            <button
               onClick={() => {
                 if (currentHole < 18) {
-                  if (allEntered) saveHoleScores(currentHole)
+                  saveHoleScores(currentHole)
                   setCurrentHole(currentHole + 1)
                 }
               }}
               disabled={currentHole === 18}
-              className="flex-1 rounded-xl border-2 border-green-700 py-3 text-sm font-semibold text-green-700 disabled:opacity-30 transition-colors"
+              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-30 transition-colors"
             >
               Next &rarr;
             </button>
