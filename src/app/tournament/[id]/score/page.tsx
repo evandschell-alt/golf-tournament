@@ -34,6 +34,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   // Moneyball tracking: which hole was the moneyball used on (if any)
   const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
   const [showScorecard, setShowScorecard] = useState(false)
+  const [teeBox, setTeeBox] = useState<string>("white")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,6 +58,18 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
           setHoles(holesData || [])
         }
+      }
+
+      // Fetch round settings (tee box)
+      const { data: roundSettings } = await supabase
+        .from("round_settings")
+        .select("tee_box")
+        .eq("tournament_id", tournamentId)
+        .eq("round_number", roundNumber)
+        .single()
+
+      if (roundSettings?.tee_box) {
+        setTeeBox(roundSettings.tee_box)
       }
 
       // Fetch teams and players
@@ -395,12 +408,12 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col flex-1 bg-green-50">
-      {/* Sticky header with team, round, and running total */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-green-700 text-white px-4 py-3 shadow-md">
-        <div className="max-w-md mx-auto flex items-center">
-          <div className="flex-1">
-            <p className="font-bold text-sm">{selectedTeam.name}</p>
-            <p className="text-xs text-green-200">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <div>
+            <p className="font-bold text-sm">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
+            <p className="text-xs text-green-200 capitalize">{teeBox} Tees</p>
           </div>
           <div className="flex gap-1.5">
             <button
@@ -416,7 +429,10 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               Board
             </Link>
           </div>
-          <p className="flex-1 text-right text-sm font-bold">RD PTS: {getTotalPoints()}</p>
+          <div className="text-right">
+            <p className="font-bold text-sm">{selectedTeam.name}</p>
+            <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
+          </div>
         </div>
       </div>
 
