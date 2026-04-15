@@ -99,6 +99,116 @@ export function round3TotalPoints(
   }, 0)
 }
 
+// ============================================
+// ROUND 2: SKINS
+// ============================================
+
+type SkinPlayerScore = {
+  playerId: string
+  teamId: string
+  strokes: number
+}
+
+type SkinHoleResult = {
+  holeNumber: number
+  winner: { playerId: string; teamId: string } | null  // null = carry over
+  skinsWon: number  // how many skins this hole was worth (includes carry-overs)
+  carryOver: number // skins carrying to next hole (0 if someone won)
+}
+
+type SkinsSummary = {
+  holeResults: SkinHoleResult[]
+  teamSkins: { [teamId: string]: number }  // total skins per team
+  playerSkins: { [playerId: string]: number }  // total skins per player
+  currentCarryOver: number  // skins currently building up (for live tracker)
+}
+
+/**
+ * Round 2 Skins: Calculate skins results for a foursome across all holes.
+ *
+ * Rules:
+ * - Each hole is worth 1 skin
+ * - Lowest score wins outright → takes all accumulated skins
+ * - Tie for lowest → skin carries over to next hole
+ * - After hole 18: remaining carry-over skins split evenly among tied players (half-point)
+ *
+ * @param holesData - Array of { holeNumber, players: [...] } for each completed hole, in order
+ * @returns SkinsSummary with per-hole results, team totals, and carry-over tracker
+ */
+export function calculateSkins(
+  holesData: { holeNumber: number; players: SkinPlayerScore[] }[]
+): SkinsSummary {
+  const holeResults: SkinHoleResult[] = []
+  const teamSkins: { [teamId: string]: number } = {}
+  const playerSkins: { [playerId: string]: number } = {}
+  let carryOver = 0
+
+  // Initialize all players/teams to 0
+  holesData.forEach((h) => {
+    h.players.forEach((p) => {
+      if (!(p.teamId in teamSkins)) teamSkins[p.teamId] = 0
+      if (!(p.playerId in playerSkins)) playerSkins[p.playerId] = 0
+    })
+  })
+
+  for (let i = 0; i < holesData.length; i++) {
+    const hole = holesData[i]
+    const skinsAtStake = 1 + carryOver
+
+    // Find the lowest score
+    const lowestScore = Math.min(...hole.players.map((p) => p.strokes))
+    const playersWithLowest = hole.players.filter((p) => p.strokes === lowestScore)
+
+    const isLastHole = i === holesData.length - 1 && hole.holeNumber === 18
+
+    if (playersWithLowest.length === 1) {
+      // Outright winner — takes all skins
+      const winner = playersWithLowest[0]
+      playerSkins[winner.playerId] += skinsAtStake
+      teamSkins[winner.teamId] += skinsAtStake
+
+      holeResults.push({
+        holeNumber: hole.holeNumber,
+        winner: { playerId: winner.playerId, teamId: winner.teamId },
+        skinsWon: skinsAtStake,
+        carryOver: 0,
+      })
+      carryOver = 0
+    } else if (isLastHole) {
+      // Tie on hole 18 — split remaining skins (half-point rule)
+      const splitAmount = skinsAtStake / playersWithLowest.length
+      playersWithLowest.forEach((p) => {
+        playerSkins[p.playerId] += splitAmount
+        teamSkins[p.teamId] += splitAmount
+      })
+
+      holeResults.push({
+        holeNumber: hole.holeNumber,
+        winner: null, // split, no outright winner
+        skinsWon: skinsAtStake,
+        carryOver: 0,
+      })
+      carryOver = 0
+    } else {
+      // Tie — carry over
+      holeResults.push({
+        holeNumber: hole.holeNumber,
+        winner: null,
+        skinsWon: 0,
+        carryOver: skinsAtStake,
+      })
+      carryOver = skinsAtStake
+    }
+  }
+
+  return {
+    holeResults,
+    teamSkins,
+    playerSkins,
+    currentCarryOver: carryOver,
+  }
+}
+
 /**
  * Format a score relative to par for display.
  * e.g., -1 = "Birdie", 0 = "Par", +1 = "Bogey"

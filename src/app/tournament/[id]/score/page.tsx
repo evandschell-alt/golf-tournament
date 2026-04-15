@@ -3,8 +3,9 @@
 import { useState, useEffect, use } from "react"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints, stablefordPoints, scoreLabel } from "@/lib/scoring"
+import { round1HolePoints, scoreLabel } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
+import R2ScoreEntry from "@/components/R2ScoreEntry"
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
@@ -16,6 +17,12 @@ type HoleScores = {
     moneyball_used: boolean
     moneyball_lost: boolean
   }
+}
+
+const ROUND_LABELS: { [key: number]: string } = {
+  1: "Best Ball",
+  2: "Skins",
+  3: "Scramble",
 }
 
 export default function ScoreEntryPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +39,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tournamentName, setTournamentName] = useState("")
-  const [roundNumber] = useState(1) // Phase 3 = Round 1 only
+  const [roundNumber, setRoundNumber] = useState(1)
+  const [roundDropdownOpen, setRoundDropdownOpen] = useState(false)
 
   // Moneyball tracking: which hole was the moneyball used on (if any)
   const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
@@ -61,18 +69,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
           setHoles(holesData || [])
         }
-      }
-
-      // Fetch round settings (tee box)
-      const { data: roundSettings } = await supabase
-        .from("round_settings")
-        .select("tee_box")
-        .eq("tournament_id", tournamentId)
-        .eq("round_number", roundNumber)
-        .single()
-
-      if (roundSettings?.tee_box) {
-        setTeeBox(roundSettings.tee_box)
       }
 
       // Fetch teams and players
@@ -104,9 +100,32 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     fetchData()
   }, [tournamentId])
 
-  // Load existing scores when team is selected
+  // Fetch tee box for the current round
+  useEffect(() => {
+    const fetchTeeBox = async () => {
+      const { data: roundSettings } = await supabase
+        .from("round_settings")
+        .select("tee_box")
+        .eq("tournament_id", tournamentId)
+        .eq("round_number", roundNumber)
+        .single()
+
+      if (roundSettings?.tee_box) {
+        setTeeBox(roundSettings.tee_box)
+      } else {
+        // Default tee boxes by round
+        const defaults: { [key: number]: string } = { 1: "white", 2: "blue", 3: "red" }
+        setTeeBox(defaults[roundNumber] || "white")
+      }
+    }
+
+    fetchTeeBox()
+  }, [tournamentId, roundNumber])
+
+  // Load existing scores when team or round changes
   useEffect(() => {
     if (!selectedTeam) return
+    if (roundNumber === 2) return // R2 handles its own scores in R2ScoreEntry
 
     const loadScores = async () => {
       const { data: existingScores } = await supabase
@@ -387,20 +406,74 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col flex-1 bg-green-50">
+      {/* Close round dropdown overlay — must be BEFORE the header so header content stays on top */}
+      {roundDropdownOpen && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setRoundDropdownOpen(false)}
+        />
+      )}
+
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-green-700 text-white px-4 py-3 shadow-md">
+      <div className="sticky top-0 z-40 bg-green-700 text-white px-4 py-3 shadow-md">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div>
-            <p className="font-bold text-sm">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
+            <div className="relative">
+              <button
+                onClick={() => setRoundDropdownOpen(!roundDropdownOpen)}
+                className="flex items-center gap-1.5 font-bold text-sm bg-green-600 rounded-lg px-2.5 py-1 hover:bg-green-500 active:bg-green-500 transition-colors"
+              >
+                Round {roundNumber} &middot; {ROUND_LABELS[roundNumber]}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 transition-transform ${roundDropdownOpen ? "rotate-180" : ""}`}>
+                  <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              {roundDropdownOpen && (
+                <div className="absolute top-full left-0 mt-2 bg-white rounded-xl border border-green-200 shadow-lg z-50 overflow-hidden min-w-[180px]">
+                  {[1, 2, 3].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => {
+                        setRoundNumber(r)
+                        setRoundDropdownOpen(false)
+                        setCurrentHole(1)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                        r === roundNumber
+                          ? "bg-green-100 text-green-800"
+                          : "text-gray-700 hover:bg-green-50"
+                      }`}
+                    >
+                      Round {r} &middot; {ROUND_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="text-xs text-green-200 capitalize">{teeBox} Tees</p>
           </div>
           <div className="text-right">
-            <p className="font-bold text-sm">{selectedTeam.name}</p>
-            <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
+            {roundNumber !== 2 && (
+              <>
+                <p className="font-bold text-sm">{selectedTeam.name}</p>
+                <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
+              </>
+            )}
+            {roundNumber === 2 && (
+              <p className="font-bold text-sm">{selectedTeam.name}</p>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Round 2: Skins — completely different UI */}
+      {roundNumber === 2 && (
+        <R2ScoreEntry tournamentId={tournamentId} />
+      )}
+
+      {/* Round 1 (and 3 placeholder) */}
+      {roundNumber !== 2 && (
       <div className="flex flex-col flex-1">
       {/* Hole info with dropdown */}
       <div className="px-4 pt-4 pb-2">
@@ -579,6 +652,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
       </div>
+      )}
 
       {/* Click outside to close dropdown */}
       {holeDropdownOpen && (
