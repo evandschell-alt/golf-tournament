@@ -353,8 +353,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col flex-1 bg-green-50">
       {/* Sticky header with team, round, and running total */}
       <div className="sticky top-0 z-10 bg-green-700 text-white px-4 py-3 shadow-md">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div>
+        <div className="max-w-md mx-auto flex items-center">
+          <div className="flex-1">
             <p className="font-bold text-sm">{selectedTeam.name}</p>
             <p className="text-xs text-green-200">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
           </div>
@@ -372,7 +372,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               Board
             </Link>
           </div>
-          <div className="text-right">
+          <div className="flex-1 text-right">
             <p className="text-2xl font-bold">{getTotalPoints()}</p>
             <p className="text-xs text-green-200">points</p>
           </div>
