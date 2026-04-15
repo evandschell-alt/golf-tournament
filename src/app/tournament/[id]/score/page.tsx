@@ -372,10 +372,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               Board
             </Link>
           </div>
-          <div className="flex-1 text-right">
-            <p className="text-2xl font-bold">{getTotalPoints()}</p>
-            <p className="text-xs text-green-200">points</p>
-          </div>
+          <p className="flex-1 text-right text-sm font-bold">{getTotalPoints()} pts</p>
         </div>
       </div>
 
