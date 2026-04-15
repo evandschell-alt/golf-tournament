@@ -125,14 +125,12 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     return hole.yardage_red
   }
 
-  // Get or initialize scores for a hole (default to par)
+  // Get or initialize scores for a hole (default to 0 = blank/dash)
   function getHoleScores(holeNumber: number): HoleScores {
     if (scores[holeNumber]) return scores[holeNumber]
-    const hole = holes.find((h) => h.hole_number === holeNumber)
-    const par = hole?.par || 4
     const init: HoleScores = {}
     selectedTeam?.players.forEach((p) => {
-      init[p.id] = { strokes: par, moneyball_used: false, moneyball_lost: false }
+      init[p.id] = { strokes: 0, moneyball_used: false, moneyball_lost: false }
     })
     return init
   }
@@ -145,10 +143,18 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   }
 
   // Increment/decrement strokes
+  // First tap on an untouched score (0) snaps to par, then adjusts from there
   function adjustStrokes(holeNumber: number, playerId: string, delta: number) {
     const current = getHoleScores(holeNumber)[playerId]?.strokes || 0
-    const newVal = Math.max(1, current + delta)
-    setStrokes(holeNumber, playerId, newVal)
+    if (current === 0) {
+      // First interaction — start at par
+      const hole = holes.find((h) => h.hole_number === holeNumber)
+      const par = hole?.par || 4
+      setStrokes(holeNumber, playerId, par)
+    } else {
+      const newVal = Math.max(1, current + delta)
+      setStrokes(holeNumber, playerId, newVal)
+    }
   }
 
   // Toggle moneyball for a player on a hole
@@ -196,19 +202,31 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     setScores({ ...scores, [holeNumber]: holeScores })
   }
 
-  // Save scores for the current hole (always saves, even par defaults)
+  // Save scores for the current hole (untouched players default to par)
   async function saveHoleScores(holeNumber: number) {
     if (!selectedTeam) return
     setSaving(true)
 
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    const par = hole?.par || 4
     const holeScores = getHoleScores(holeNumber)
     const players = selectedTeam.players
 
+    // Fill in par for any untouched players (strokes === 0)
+    const filledScores: HoleScores = {}
+    players.forEach((p) => {
+      const ps = holeScores[p.id]
+      filledScores[p.id] = {
+        ...ps,
+        strokes: ps.strokes === 0 ? par : ps.strokes,
+      }
+    })
+
     // Persist into state so the hole shows as completed
-    setScores((prev) => ({ ...prev, [holeNumber]: holeScores }))
+    setScores((prev) => ({ ...prev, [holeNumber]: filledScores }))
 
     for (const player of players) {
-      const ps = holeScores[player.id]
+      const ps = filledScores[player.id]
 
       const { error } = await supabase
         .from("scores")
