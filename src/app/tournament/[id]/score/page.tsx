@@ -124,12 +124,14 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     return hole.yardage_red
   }
 
-  // Get or initialize scores for a hole
+  // Get or initialize scores for a hole (default to par)
   function getHoleScores(holeNumber: number): HoleScores {
     if (scores[holeNumber]) return scores[holeNumber]
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    const par = hole?.par || 4
     const init: HoleScores = {}
     selectedTeam?.players.forEach((p) => {
-      init[p.id] = { strokes: 0, moneyball_used: false, moneyball_lost: false }
+      init[p.id] = { strokes: par, moneyball_used: false, moneyball_lost: false }
     })
     return init
   }
