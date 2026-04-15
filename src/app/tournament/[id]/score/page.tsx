@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase"
 import { round1HolePoints, scoreLabel } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
 import R2ScoreEntry from "@/components/R2ScoreEntry"
+import R3ScoreEntry from "@/components/R3ScoreEntry"
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
@@ -451,17 +452,12 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
                 </div>
               )}
             </div>
-            <p className="text-xs text-green-200 capitalize">{teeBox} Tees</p>
+            <p className="text-xs text-green-200 capitalize pl-2.5 mt-0.5">{teeBox} Tees</p>
           </div>
           <div className="text-right">
-            {roundNumber !== 2 && (
-              <>
-                <p className="font-bold text-sm">{selectedTeam.name}</p>
-                <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
-              </>
-            )}
-            {roundNumber === 2 && (
-              <p className="font-bold text-sm">{selectedTeam.name}</p>
+            <p className="font-bold text-sm">{selectedTeam.name}</p>
+            {roundNumber === 1 && (
+              <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
             )}
           </div>
         </div>
@@ -472,8 +468,13 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         <R2ScoreEntry tournamentId={tournamentId} />
       )}
 
-      {/* Round 1 (and 3 placeholder) */}
-      {roundNumber !== 2 && (
+      {/* Round 3: Scramble — single team score + mulligans */}
+      {roundNumber === 3 && (
+        <R3ScoreEntry tournamentId={tournamentId} team={selectedTeam} />
+      )}
+
+      {/* Round 1: Best Ball */}
+      {roundNumber === 1 && (
       <div className="flex flex-col flex-1">
       {/* Hole info with dropdown */}
       <div className="px-4 pt-4 pb-2">
