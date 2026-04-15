@@ -236,6 +236,30 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     setSaving(false)
   }
 
+  // Unsave/undo scores for a hole (remove from state + delete from Supabase)
+  async function unsaveHoleScores(holeNumber: number) {
+    if (!selectedTeam) return
+
+    // Remove from local state so the hole circle turns grey
+    setScores((prev) => {
+      const next = { ...prev }
+      delete next[holeNumber]
+      return next
+    })
+
+    // Delete from Supabase
+    const players = selectedTeam.players
+    for (const player of players) {
+      await supabase
+        .from("scores")
+        .delete()
+        .eq("tournament_id", tournamentId)
+        .eq("round_number", roundNumber)
+        .eq("hole_number", holeNumber)
+        .eq("player_id", player.id)
+    }
+  }
+
   // Calculate running total points
   function getTotalPoints(): number {
     let total = 0
@@ -544,7 +568,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               <button
                 key={h.hole_number}
                 onClick={() => {
-                  saveHoleScores(currentHole)
                   setCurrentHole(h.hole_number)
                 }}
                 className={`min-w-[2rem] h-8 rounded-full text-xs font-bold transition-colors ${
@@ -676,7 +699,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             <button
               onClick={() => {
                 if (currentHole > 1) {
-                  saveHoleScores(currentHole)
+                  unsaveHoleScores(currentHole)
                   setCurrentHole(currentHole - 1)
                 }
               }}
