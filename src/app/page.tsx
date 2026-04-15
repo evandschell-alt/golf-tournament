@@ -127,7 +127,13 @@ export default function Home() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Link
+                      href={`/tournament/${t.id}/score`}
+                      className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 transition-colors"
+                    >
+                      Enter Scores
+                    </Link>
                     <Link
                       href={`/tournament/${t.id}/pairings`}
                       className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
