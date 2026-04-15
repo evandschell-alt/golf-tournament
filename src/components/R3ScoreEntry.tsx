@@ -239,18 +239,18 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
   return (
     <div className="flex flex-col flex-1">
       {/* Mulligan tracker bar */}
-      <div className="bg-purple-50 border-b border-purple-200 px-4 py-2">
+      <div className="bg-yellow-50 border-b border-yellow-300 px-4 py-2">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-purple-800">Mulligans</span>
+            <span className="text-xs font-semibold text-yellow-800">Mulligans</span>
             <div className="flex gap-1">
               {team.players.map((p) => (
                 <div
                   key={p.id}
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                     mulligans[p.id]
-                      ? "bg-purple-200 text-purple-400 line-through"
-                      : "bg-purple-500 text-white"
+                      ? "bg-yellow-200 text-yellow-400 line-through"
+                      : "bg-yellow-500 text-white"
                   }`}
                   title={p.name}
                 >
@@ -259,7 +259,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
               ))}
             </div>
           </div>
-          <span className="text-xs font-bold text-purple-700">
+          <span className="text-xs font-bold text-yellow-700">
             {mulligansRemaining} remaining
           </span>
         </div>
@@ -361,7 +361,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
 
             {/* Mulligan buttons */}
             <div className="border-t border-green-100 pt-4 mt-2">
-              <p className="text-xs font-semibold text-purple-700 mb-2 text-center">
+              <p className="text-xs font-semibold text-yellow-700 mb-2 text-center">
                 Use a mulligan on this hole?
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -380,10 +380,10 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
                       disabled={usedElsewhere}
                       className={`rounded-lg py-2 px-2 text-xs font-semibold transition-colors ${
                         usedHere
-                          ? "bg-purple-500 text-white"
+                          ? "bg-yellow-500 text-white"
                           : usedElsewhere
                           ? "bg-gray-100 text-gray-300 line-through"
-                          : "bg-gray-100 text-gray-600 hover:bg-purple-100 active:bg-purple-100"
+                          : "bg-gray-100 text-gray-600 hover:bg-yellow-100 active:bg-yellow-100"
                       }`}
                     >
                       {player.name.split(" ")[0]}
@@ -393,7 +393,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
                 })}
               </div>
               {mulligansOnThisHole.length > 0 && (
-                <p className="text-xs text-purple-600 text-center mt-2">
+                <p className="text-xs text-yellow-700 text-center mt-2">
                   {mulligansOnThisHole.map((p) => p.name.split(" ")[0]).join(", ")} used mulligan
                 </p>
               )}
