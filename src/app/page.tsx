@@ -100,66 +100,58 @@ export default function Home() {
             {tournaments.map((t) => (
               <div
                 key={t.id}
-                className="rounded-xl bg-white p-4 shadow-sm border border-green-200"
+                className="rounded-xl bg-white shadow-sm border border-green-200 overflow-hidden"
               >
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <h3 className="font-bold text-green-900 text-lg">
-                      {t.name} {t.year}
-                    </h3>
-                    {t.courses && (
-                      <p className="text-sm text-green-600 mt-0.5">
-                        {Array.isArray(t.courses) ? t.courses[0]?.name : t.courses.name}
-                      </p>
-                    )}
-                    {t.date && (
-                      <p className="text-xs text-green-500 mt-0.5">
-                        {new Date(t.date + "T00:00:00").toLocaleDateString("en-US", {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    )}
-                    {t.teams.length > 0 && (
-                      <p className="text-xs text-green-500 mt-1">
-                        {t.teams.map((team) => team.name).join(" vs ")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Link
-                      href={`/tournament/${t.id}/score`}
-                      className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 transition-colors"
-                    >
-                      Enter Scores
-                    </Link>
-                    <Link
-                      href={`/tournament/${t.id}/leaderboard`}
-                      className="rounded-lg bg-yellow-400 px-3 py-1.5 text-xs font-medium text-yellow-900 hover:bg-yellow-500 transition-colors"
-                    >
-                      Leaderboard
-                    </Link>
-                    <Link
-                      href={`/tournament/${t.id}/pairings`}
-                      className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
-                    >
-                      R2 Pairings
-                    </Link>
-                    <Link
-                      href={`/setup?edit=${t.id}`}
-                      className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(t)}
-                      disabled={deleting === t.id}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                    >
-                      {deleting === t.id ? "..." : "Delete"}
-                    </button>
-                  </div>
+                {/* Clickable card body → leaderboard */}
+                <Link
+                  href={`/tournament/${t.id}/leaderboard`}
+                  className="block p-4 hover:bg-green-50 transition-colors"
+                >
+                  <h3 className="font-bold text-green-900 text-lg">
+                    {t.name} {t.year}
+                  </h3>
+                  {t.courses && (
+                    <p className="text-sm text-green-600 mt-0.5">
+                      {Array.isArray(t.courses) ? t.courses[0]?.name : t.courses.name}
+                    </p>
+                  )}
+                  {t.date && (
+                    <p className="text-xs text-green-500 mt-0.5">
+                      {new Date(t.date + "T00:00:00").toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
+                  {t.teams.length > 0 && (
+                    <p className="text-xs text-green-500 mt-1">
+                      {t.teams.map((team) => team.name).join(" vs ")}
+                    </p>
+                  )}
+                </Link>
+
+                {/* Action buttons */}
+                <div className="flex border-t border-green-100">
+                  <Link
+                    href={`/tournament/${t.id}/settings`}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors border-r border-green-100"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                      <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                    Settings
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(t)
+                    }}
+                    disabled={deleting === t.id}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    {deleting === t.id ? "..." : "Delete"}
+                  </button>
                 </div>
               </div>
             ))}

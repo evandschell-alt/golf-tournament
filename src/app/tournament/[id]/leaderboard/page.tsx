@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, use } from "react"
 import { supabase } from "@/lib/supabase"
 import { round1HolePoints } from "@/lib/scoring"
+import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
@@ -181,7 +182,15 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       <div className="flex-1 px-4 py-6">
       <div className="w-full max-w-2xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 relative">
+          <Link
+            href={`/tournament/${tournamentId}/settings`}
+            className="absolute right-0 top-1 text-green-400 hover:text-green-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+          </Link>
           <h1 className="text-3xl font-bold text-green-900">Leaderboard</h1>
           <p className="text-sm text-green-700 mt-1">{tournamentName}</p>
           {lastUpdated && (
@@ -189,6 +198,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
               Live &middot; Updated {lastUpdated.toLocaleTimeString()}
             </p>
           )}
+          <p className="text-xs text-green-400 mt-2">Tap a team to enter scores</p>
         </div>
 
         {!hasScores ? (
@@ -205,9 +215,10 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                 const isTied = index > 0 && standing.totalPoints === leader?.totalPoints && standing.totalPoints > 0
 
                 return (
-                  <div
+                  <Link
                     key={standing.team.id}
-                    className={`rounded-xl bg-white border-2 p-4 transition-all ${
+                    href={`/tournament/${tournamentId}/score?team=${standing.team.id}`}
+                    className={`block rounded-xl bg-white border-2 p-4 transition-all hover:shadow-md ${
                       isLeader
                         ? "border-yellow-400 shadow-md"
                         : isTied
@@ -260,7 +271,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                         <p className="text-xs text-gray-300">upcoming</p>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
