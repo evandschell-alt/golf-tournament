@@ -135,6 +135,12 @@ export default function Home() {
                       Enter Scores
                     </Link>
                     <Link
+                      href={`/tournament/${t.id}/leaderboard`}
+                      className="rounded-lg bg-yellow-400 px-3 py-1.5 text-xs font-medium text-yellow-900 hover:bg-yellow-500 transition-colors"
+                    >
+                      Leaderboard
+                    </Link>
+                    <Link
                       href={`/tournament/${t.id}/pairings`}
                       className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 transition-colors"
                     >

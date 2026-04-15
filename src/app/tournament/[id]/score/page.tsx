@@ -526,7 +526,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       )}
 
       {/* Hole navigation + score entry (hidden when scorecard is shown) */}
-      {!showScorecard && <>
+      {!showScorecard && (
+      <div className="flex flex-col flex-1">
       <div className="bg-white border-b border-green-200 px-4 py-2 overflow-x-auto">
         <div className="max-w-md mx-auto flex gap-1">
           {holes.map((h) => {
@@ -699,7 +700,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
-      </>}
+      </div>
+      )}
     </div>
   )
 }
