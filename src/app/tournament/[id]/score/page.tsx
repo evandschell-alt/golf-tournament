@@ -358,12 +358,20 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             <p className="font-bold text-sm">{selectedTeam.name}</p>
             <p className="text-xs text-green-200">Round {roundNumber} &middot; Stableford</p>
           </div>
-          <button
-            onClick={() => setShowScorecard(!showScorecard)}
-            className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-          >
-            {showScorecard ? "Enter Scores" : "Scorecard"}
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setShowScorecard(!showScorecard)}
+              className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+            >
+              {showScorecard ? "Scores" : "Card"}
+            </button>
+            <Link
+              href={`/tournament/${tournamentId}/leaderboard`}
+              className="text-xs bg-yellow-400 text-yellow-900 hover:bg-yellow-300 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+            >
+              Board
+            </Link>
+          </div>
           <div className="text-right">
             <p className="text-2xl font-bold">{getTotalPoints()}</p>
             <p className="text-xs text-green-200">{getCompletedHoles()}/18 holes</p>
