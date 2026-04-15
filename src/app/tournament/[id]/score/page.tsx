@@ -374,7 +374,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold">{getTotalPoints()}</p>
-            <p className="text-xs text-green-200">{getCompletedHoles()}/18 holes</p>
+            <p className="text-xs text-green-200">points</p>
           </div>
         </div>
       </div>
