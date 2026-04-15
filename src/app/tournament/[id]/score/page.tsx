@@ -356,7 +356,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div>
             <p className="font-bold text-sm">{selectedTeam.name}</p>
-            <p className="text-xs text-green-200">Round {roundNumber} &middot; Stableford</p>
+            <p className="text-xs text-green-200">Round {roundNumber} &middot; {roundNumber === 1 ? "Best Ball" : roundNumber === 2 ? "Skins" : "Scramble"}</p>
           </div>
           <div className="flex gap-1.5">
             <button
