@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, use } from "react"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints } from "@/lib/scoring"
+import { round1HolePoints, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
 import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
+type Player = { id: string; name: string; team_id: string }
 type Hole = { hole_number: number; par: number }
+type R2Pairing = { group_number: number; player_id: string }
 type ScoreRow = {
   team_id: string
   player_id: string | null
@@ -22,6 +24,10 @@ type TeamStanding = {
   team: Team
   round1Points: number
   round1Completed: number
+  round2Skins: number
+  round2Completed: number
+  round3Points: number
+  round3Completed: number
   totalPoints: number
 }
 
@@ -34,30 +40,94 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
   // Store raw data for recalculation
   const [teams, setTeams] = useState<Team[]>([])
+  const [players, setPlayers] = useState<Player[]>([])
   const [holes, setHoles] = useState<Hole[]>([])
   const [scores, setScores] = useState<ScoreRow[]>([])
+  const [r2Pairings, setR2Pairings] = useState<R2Pairing[]>([])
 
   const calculateStandings = useCallback(
-    (teamsData: Team[], holesData: Hole[], scoresData: ScoreRow[]): TeamStanding[] => {
+    (
+      teamsData: Team[],
+      playersData: Player[],
+      holesData: Hole[],
+      scoresData: ScoreRow[],
+      pairingsData: R2Pairing[]
+    ): TeamStanding[] => {
+      // ---- ROUND 2: SKINS (calculated once for all foursomes) ----
+      // Group pairings by group_number
+      const foursomeGroups: { [groupNum: number]: string[] } = {}
+      pairingsData.forEach((p) => {
+        if (!foursomeGroups[p.group_number]) foursomeGroups[p.group_number] = []
+        foursomeGroups[p.group_number].push(p.player_id)
+      })
+
+      // Calculate skins per team across all foursomes
+      const teamSkinsMap: { [teamId: string]: number } = {}
+      const teamR2CompletedMap: { [teamId: string]: number } = {}
+      teamsData.forEach((t) => {
+        teamSkinsMap[t.id] = 0
+        teamR2CompletedMap[t.id] = 0
+      })
+
+      const r2Scores = scoresData.filter((s) => s.round_number === 2)
+
+      Object.entries(foursomeGroups).forEach(([, playerIds]) => {
+        // Build hole data for this foursome
+        const foursomeHoles: { holeNumber: number; players: { playerId: string; teamId: string; strokes: number }[] }[] = []
+
+        holesData.forEach((hole) => {
+          const holePlayers = playerIds.map((pid) => {
+            const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
+            const player = playersData.find((p) => p.id === pid)
+            return {
+              playerId: pid,
+              teamId: player?.team_id || "",
+              strokes: score?.strokes || 0,
+            }
+          })
+
+          // Only include hole if all players have scores
+          const allEntered = holePlayers.every((p) => p.strokes > 0)
+          if (allEntered) {
+            foursomeHoles.push({ holeNumber: hole.hole_number, players: holePlayers })
+          }
+        })
+
+        if (foursomeHoles.length > 0) {
+          const skinsResult = calculateSkins(foursomeHoles)
+
+          // Add skins to team totals
+          Object.entries(skinsResult.teamSkins).forEach(([teamId, skins]) => {
+            teamSkinsMap[teamId] = (teamSkinsMap[teamId] || 0) + skins
+          })
+
+          // Track completed holes per team (use max completed across foursomes)
+          playerIds.forEach((pid) => {
+            const player = playersData.find((p) => p.id === pid)
+            if (player) {
+              const current = teamR2CompletedMap[player.team_id] || 0
+              teamR2CompletedMap[player.team_id] = Math.max(current, foursomeHoles.length)
+            }
+          })
+        }
+      })
+
       return teamsData
         .map((team) => {
-          // Round 1: Best Ball Stableford
+          // ---- ROUND 1: BEST BALL STABLEFORD ----
           let round1Points = 0
           let round1Completed = 0
           const teamR1Scores = scoresData.filter(
             (s) => s.team_id === team.id && s.round_number === 1
           )
 
-          // Get unique player IDs for this team in round 1
           const playerIds = [...new Set(teamR1Scores.filter((s) => s.player_id).map((s) => s.player_id!))]
 
           holesData.forEach((hole) => {
-            // Get all player scores for this hole
             const holePlayerScores = playerIds.map((pid) =>
               teamR1Scores.find((s) => s.hole_number === hole.hole_number && s.player_id === pid)
             )
 
-            // Only count if all players have scores
             if (holePlayerScores.every((s) => s && s.strokes > 0) && holePlayerScores.length >= 4) {
               const playerData = holePlayerScores.map((s) => ({
                 strokes: s!.strokes,
@@ -69,10 +139,47 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
             }
           })
 
-          // Rounds 2 & 3 will be added later
-          const totalPoints = round1Points
+          // ---- ROUND 2: SKINS (from pre-calculated map) ----
+          const round2Skins = teamSkinsMap[team.id] || 0
+          const round2Completed = teamR2CompletedMap[team.id] || 0
 
-          return { team, round1Points, round1Completed, totalPoints }
+          // ---- ROUND 3: SCRAMBLE (ADJUSTED STABLEFORD) ----
+          let round3Points = 0
+          let round3Completed = 0
+          const teamR3Scores = scoresData.filter(
+            (s) => s.team_id === team.id && s.round_number === 3
+          )
+
+          // For scramble, all players have the same strokes per hole
+          // Just need one score per hole
+          const r3HoleScores: { [holeNum: number]: number } = {}
+          teamR3Scores.forEach((s) => {
+            if (s.strokes > 0) {
+              r3HoleScores[s.hole_number] = s.strokes
+            }
+          })
+
+          holesData.forEach((hole) => {
+            const strokes = r3HoleScores[hole.hole_number]
+            if (strokes && strokes > 0) {
+              round3Points += adjustedStablefordPoints(strokes, hole.par)
+              round3Completed++
+            }
+          })
+
+          // ---- TOTAL ----
+          const totalPoints = round1Points + round2Skins + round3Points
+
+          return {
+            team,
+            round1Points,
+            round1Completed,
+            round2Skins,
+            round2Completed,
+            round3Points,
+            round3Completed,
+            totalPoints,
+          }
         })
         .sort((a, b) => b.totalPoints - a.totalPoints)
     },
@@ -110,6 +217,18 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
+      // Fetch players (needed for R2 skins team mapping)
+      const { data: playersData } = await supabase
+        .from("players")
+        .select("id, name, team_id")
+        .in("team_id", (teamsData || []).map((t) => t.id))
+
+      // Fetch R2 pairings
+      const { data: pairingsData } = await supabase
+        .from("r2_pairings")
+        .select("group_number, player_id")
+        .eq("tournament_id", tournamentId)
+
       // Fetch all scores
       const { data: scoresData } = await supabase
         .from("scores")
@@ -117,13 +236,17 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
         .eq("tournament_id", tournamentId)
 
       const t = teamsData || []
+      const pl = playersData || []
       const h = holesData
       const s = scoresData || []
+      const p = pairingsData || []
 
       setTeams(t)
+      setPlayers(pl)
       setHoles(h)
       setScores(s)
-      setStandings(calculateStandings(t, h, s))
+      setR2Pairings(p)
+      setStandings(calculateStandings(t, pl, h, s, p))
       setLastUpdated(new Date())
       setLoading(false)
     }
@@ -153,7 +276,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
             const s = scoresData || []
             setScores(s)
-            setStandings(calculateStandings(teams, holes, s))
+            setStandings(calculateStandings(teams, players, holes, s, r2Pairings))
             setLastUpdated(new Date())
           }
           refetch()
@@ -164,7 +287,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [tournamentId, teams, holes, calculateStandings])
+  }, [tournamentId, teams, players, holes, r2Pairings, calculateStandings])
 
   if (loading) {
     return (
@@ -249,26 +372,45 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
                     {/* Round breakdown */}
                     <div className="flex gap-2">
+                      {/* R1 Best Ball */}
                       <div className={`flex-1 rounded-lg px-3 py-2 ${
                         standing.round1Completed > 0 ? "bg-green-50" : "bg-gray-50"
                       }`}>
-                        <p className="text-xs text-green-600 font-semibold">R1 Best Ball</p>
-                        <p className="text-sm font-bold text-green-900">
-                          {standing.round1Points} pts
+                        <p className={`text-xs font-semibold ${standing.round1Completed > 0 ? "text-green-600" : "text-gray-400"}`}>R1 Best Ball</p>
+                        <p className={`text-sm font-bold ${standing.round1Completed > 0 ? "text-green-900" : "text-gray-300"}`}>
+                          {standing.round1Completed > 0 ? `${standing.round1Points} pts` : "–"}
                         </p>
-                        <p className="text-xs text-green-500">
-                          {standing.round1Completed}/18 holes
+                        <p className={`text-xs ${standing.round1Completed > 0 ? "text-green-500" : "text-gray-300"}`}>
+                          {standing.round1Completed > 0 ? `${standing.round1Completed}/18 holes` : "upcoming"}
                         </p>
                       </div>
-                      <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
-                        <p className="text-xs text-gray-400 font-semibold">R2 Skins</p>
-                        <p className="text-sm font-bold text-gray-300">–</p>
-                        <p className="text-xs text-gray-300">upcoming</p>
+
+                      {/* R2 Skins */}
+                      <div className={`flex-1 rounded-lg px-3 py-2 ${
+                        standing.round2Completed > 0 ? "bg-yellow-50" : "bg-gray-50"
+                      }`}>
+                        <p className={`text-xs font-semibold ${standing.round2Completed > 0 ? "text-yellow-700" : "text-gray-400"}`}>R2 Skins</p>
+                        <p className={`text-sm font-bold ${standing.round2Completed > 0 ? "text-yellow-900" : "text-gray-300"}`}>
+                          {standing.round2Completed > 0
+                            ? `${standing.round2Skins % 1 === 0 ? standing.round2Skins : standing.round2Skins.toFixed(1)} skins`
+                            : "–"}
+                        </p>
+                        <p className={`text-xs ${standing.round2Completed > 0 ? "text-yellow-600" : "text-gray-300"}`}>
+                          {standing.round2Completed > 0 ? `${standing.round2Completed}/18 holes` : "upcoming"}
+                        </p>
                       </div>
-                      <div className="flex-1 rounded-lg bg-gray-50 px-3 py-2">
-                        <p className="text-xs text-gray-400 font-semibold">R3 Scramble</p>
-                        <p className="text-sm font-bold text-gray-300">–</p>
-                        <p className="text-xs text-gray-300">upcoming</p>
+
+                      {/* R3 Scramble */}
+                      <div className={`flex-1 rounded-lg px-3 py-2 ${
+                        standing.round3Completed > 0 ? "bg-green-50" : "bg-gray-50"
+                      }`}>
+                        <p className={`text-xs font-semibold ${standing.round3Completed > 0 ? "text-green-600" : "text-gray-400"}`}>R3 Scramble</p>
+                        <p className={`text-sm font-bold ${standing.round3Completed > 0 ? "text-green-900" : "text-gray-300"}`}>
+                          {standing.round3Completed > 0 ? `${standing.round3Points} pts` : "–"}
+                        </p>
+                        <p className={`text-xs ${standing.round3Completed > 0 ? "text-green-500" : "text-gray-300"}`}>
+                          {standing.round3Completed > 0 ? `${standing.round3Completed}/18 holes` : "upcoming"}
+                        </p>
                       </div>
                     </div>
                   </Link>
@@ -278,7 +420,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
             {/* Scoring key */}
             <div className="mt-6 rounded-xl bg-white border border-green-200 p-4">
-              <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Stableford Scoring</h4>
+              <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Stableford Scoring (R1)</h4>
               <div className="grid grid-cols-5 gap-2 text-center text-xs">
                 <div>
                   <p className="font-bold text-green-900">8</p>
@@ -298,6 +440,29 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                 </div>
                 <div>
                   <p className="font-bold text-green-900">0</p>
+                  <p className="text-green-500">Bogey+</p>
+                </div>
+              </div>
+              <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2 mt-4">Adjusted Stableford (R3)</h4>
+              <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                <div>
+                  <p className="font-bold text-green-900">8</p>
+                  <p className="text-green-500">Albatross</p>
+                </div>
+                <div>
+                  <p className="font-bold text-green-900">4</p>
+                  <p className="text-green-500">Eagle</p>
+                </div>
+                <div>
+                  <p className="font-bold text-green-900">1</p>
+                  <p className="text-green-500">Birdie</p>
+                </div>
+                <div>
+                  <p className="font-bold text-green-900">0</p>
+                  <p className="text-green-500">Par</p>
+                </div>
+                <div>
+                  <p className="font-bold text-red-600">-2</p>
                   <p className="text-green-500">Bogey+</p>
                 </div>
               </div>
