@@ -33,6 +33,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
   // Moneyball tracking: which hole was the moneyball used on (if any)
   const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
+  const [showScorecard, setShowScorecard] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -267,6 +268,23 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     return count
   }
 
+  // Get scorecard data for a hole (returns null if not completed)
+  function getScorecardHole(holeNumber: number): { bestScore: number; points: number } | null {
+    const hs = scores[holeNumber]
+    if (!hs) return null
+    const players = selectedTeam?.players || []
+    const allEntered = players.every((p) => hs[p.id]?.strokes > 0)
+    if (!allEntered) return null
+
+    const playerData = players.map((p) => ({
+      strokes: hs[p.id].strokes,
+      moneyball_used: hs[p.id].moneyball_used,
+      moneyball_lost: hs[p.id].moneyball_lost,
+    }))
+    const result = round1HolePoints(playerData, holes.find((h) => h.hole_number === holeNumber)!.par)
+    return { bestScore: result.bestScore, points: result.points }
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -340,6 +358,12 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             <p className="font-bold text-sm">{selectedTeam.name}</p>
             <p className="text-xs text-green-200">Round {roundNumber} &middot; Stableford</p>
           </div>
+          <button
+            onClick={() => setShowScorecard(!showScorecard)}
+            className="text-xs bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+          >
+            {showScorecard ? "Enter Scores" : "Scorecard"}
+          </button>
           <div className="text-right">
             <p className="text-2xl font-bold">{getTotalPoints()}</p>
             <p className="text-xs text-green-200">{getCompletedHoles()}/18 holes</p>
@@ -347,7 +371,162 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* Hole navigation */}
+      {/* Scorecard view */}
+      {showScorecard && (
+        <div className="flex-1 px-4 py-4">
+          <div className="max-w-md mx-auto">
+            {/* Front 9 */}
+            <div className="rounded-xl bg-white border border-green-200 overflow-hidden mb-4">
+              <div className="bg-green-100 px-3 py-2">
+                <h3 className="font-bold text-green-900 text-sm">Front 9</h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-green-100">
+                    <th className="text-left px-3 py-1.5 text-xs text-green-600 font-semibold">Hole</th>
+                    {holes.filter((h) => h.hole_number <= 9).map((h) => (
+                      <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center w-[2rem]">
+                        {h.hole_number}
+                      </th>
+                    ))}
+                    <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-green-50">
+                    <td className="px-3 py-1.5 text-xs text-green-600">Par</td>
+                    {holes.filter((h) => h.hole_number <= 9).map((h) => (
+                      <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
+                    ))}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => sum + h.par, 0)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-green-50">
+                    <td className="px-3 py-1.5 text-xs text-green-600">Score</td>
+                    {holes.filter((h) => h.hole_number <= 9).map((h) => {
+                      const data = getScorecardHole(h.hole_number)
+                      return (
+                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${
+                          data ? (data.bestScore < h.par ? "text-red-600" : data.bestScore > h.par ? "text-blue-600" : "text-green-900") : "text-gray-300"
+                        }`}>
+                          {data ? data.bestScore : "–"}
+                        </td>
+                      )
+                    })}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => {
+                        const data = getScorecardHole(h.hole_number)
+                        return sum + (data ? data.bestScore : 0)
+                      }, 0) || "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1.5 text-xs text-green-600">Pts</td>
+                    {holes.filter((h) => h.hole_number <= 9).map((h) => {
+                      const data = getScorecardHole(h.hole_number)
+                      return (
+                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
+                          data ? (data.points > 0 ? "text-green-700" : "text-gray-400") : "text-gray-300"
+                        }`}>
+                          {data ? data.points : "–"}
+                        </td>
+                      )
+                    })}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number <= 9).reduce((sum, h) => {
+                        const data = getScorecardHole(h.hole_number)
+                        return sum + (data ? data.points : 0)
+                      }, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Back 9 */}
+            <div className="rounded-xl bg-white border border-green-200 overflow-hidden mb-4">
+              <div className="bg-green-100 px-3 py-2">
+                <h3 className="font-bold text-green-900 text-sm">Back 9</h3>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-green-100">
+                    <th className="text-left px-3 py-1.5 text-xs text-green-600 font-semibold">Hole</th>
+                    {holes.filter((h) => h.hole_number > 9).map((h) => (
+                      <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center w-[2rem]">
+                        {h.hole_number}
+                      </th>
+                    ))}
+                    <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-green-50">
+                    <td className="px-3 py-1.5 text-xs text-green-600">Par</td>
+                    {holes.filter((h) => h.hole_number > 9).map((h) => (
+                      <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
+                    ))}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => sum + h.par, 0)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-green-50">
+                    <td className="px-3 py-1.5 text-xs text-green-600">Score</td>
+                    {holes.filter((h) => h.hole_number > 9).map((h) => {
+                      const data = getScorecardHole(h.hole_number)
+                      return (
+                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${
+                          data ? (data.bestScore < h.par ? "text-red-600" : data.bestScore > h.par ? "text-blue-600" : "text-green-900") : "text-gray-300"
+                        }`}>
+                          {data ? data.bestScore : "–"}
+                        </td>
+                      )
+                    })}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => {
+                        const data = getScorecardHole(h.hole_number)
+                        return sum + (data ? data.bestScore : 0)
+                      }, 0) || "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1.5 text-xs text-green-600">Pts</td>
+                    {holes.filter((h) => h.hole_number > 9).map((h) => {
+                      const data = getScorecardHole(h.hole_number)
+                      return (
+                        <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
+                          data ? (data.points > 0 ? "text-green-700" : "text-gray-400") : "text-gray-300"
+                        }`}>
+                          {data ? data.points : "–"}
+                        </td>
+                      )
+                    })}
+                    <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                      {holes.filter((h) => h.hole_number > 9).reduce((sum, h) => {
+                        const data = getScorecardHole(h.hole_number)
+                        return sum + (data ? data.points : 0)
+                      }, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Total summary */}
+            <div className="rounded-xl bg-green-700 text-white p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold">Round {roundNumber} Total</p>
+                <p className="text-xs text-green-200">{getCompletedHoles()} of 18 holes</p>
+              </div>
+              <p className="text-3xl font-bold">{getTotalPoints()} pts</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hole navigation + score entry (hidden when scorecard is shown) */}
+      {!showScorecard && <>
       <div className="bg-white border-b border-green-200 px-4 py-2 overflow-x-auto">
         <div className="max-w-md mx-auto flex gap-1">
           {holes.map((h) => {
@@ -520,6 +699,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
+      </>}
     </div>
   )
 }
