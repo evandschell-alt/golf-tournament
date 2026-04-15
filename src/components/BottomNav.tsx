@@ -54,7 +54,7 @@ const allTabs: Tab[] = [
     label: "Scores",
     hrefFn: (id: string, teamId?: string) => `/tournament/${id}/score?team=${teamId}`,
     icon: scoresIcon,
-    match: (path: string) => path.includes("/score"),
+    match: (path: string) => path.includes("/score") && !path.includes("/scorecard"),
     requiresTeam: true,
   },
   {
