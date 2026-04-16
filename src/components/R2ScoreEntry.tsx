@@ -311,13 +311,6 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
               </div>
             ))}
           </div>
-          {skinsResults && skinsResults.currentCarryOver > 0 && (
-            <div className="mt-2 flex justify-center">
-              <span className="text-xs font-bold text-yellow-700 bg-yellow-200 px-3 py-1 rounded-full">
-                {skinsResults.currentCarryOver} on the line!
-              </span>
-            </div>
-          )}
         </div>
       </div>
 

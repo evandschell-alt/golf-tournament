@@ -41,8 +41,23 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tournamentName, setTournamentName] = useState("")
-  const [roundNumber, setRoundNumber] = useState(roundFromUrl ? parseInt(roundFromUrl) : 1)
+  const [roundNumber, setRoundNumberState] = useState(() => {
+    if (roundFromUrl) return parseInt(roundFromUrl)
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`round-${tournamentId}`)
+      if (saved) return parseInt(saved)
+    }
+    return 1
+  })
   const [roundDropdownOpen, setRoundDropdownOpen] = useState(false)
+
+  // Persist round to localStorage whenever it changes
+  function setRoundNumber(r: number) {
+    setRoundNumberState(r)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`round-${tournamentId}`, String(r))
+    }
+  }
   const [allScores, setAllScores] = useState<{ team_id: string; round_number: number; hole_number: number; strokes: number; moneyball_used: boolean; moneyball_lost: boolean; player_id: string | null }[]>([])
   const [r2Pairings, setR2Pairings] = useState<{ group_number: number; player_id: string }[]>([])
   const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string }[]>([])

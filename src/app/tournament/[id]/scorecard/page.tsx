@@ -30,7 +30,14 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   const [scores, setScores] = useState<{ [holeNumber: number]: HoleScores }>({})
   const [loading, setLoading] = useState(true)
   const [tournamentName, setTournamentName] = useState("")
-  const [roundNumber] = useState(roundFromUrl ? parseInt(roundFromUrl) : 1)
+  const [roundNumber] = useState(() => {
+    if (roundFromUrl) return parseInt(roundFromUrl)
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`round-${tournamentId}`)
+      if (saved) return parseInt(saved)
+    }
+    return 1
+  })
   const [teeBox, setTeeBox] = useState<string>("white")
 
   useEffect(() => {
