@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 type BottomNavProps = {
   tournamentId: string
   teamId?: string | null
+  roundNumber?: number
 }
 
 const homeIcon = (
@@ -37,7 +38,7 @@ const boardIcon = (
 type Tab = {
   label: string
   href?: string
-  hrefFn?: (tournamentId: string, teamId?: string) => string
+  hrefFn?: (tournamentId: string, teamId?: string, roundNumber?: number) => string
   icon: React.ReactNode
   match: (path: string) => boolean
   requiresTeam?: boolean
@@ -52,14 +53,16 @@ const allTabs: Tab[] = [
   },
   {
     label: "Scores",
-    hrefFn: (id: string, teamId?: string) => `/tournament/${id}/score?team=${teamId}`,
+    hrefFn: (id: string, teamId?: string, roundNumber?: number) =>
+      `/tournament/${id}/score?team=${teamId}${roundNumber ? `&round=${roundNumber}` : ""}`,
     icon: scoresIcon,
     match: (path: string) => path.includes("/score") && !path.includes("/scorecard"),
     requiresTeam: true,
   },
   {
     label: "Card",
-    hrefFn: (id: string, teamId?: string) => `/tournament/${id}/scorecard?team=${teamId}`,
+    hrefFn: (id: string, teamId?: string, roundNumber?: number) =>
+      `/tournament/${id}/scorecard?team=${teamId}${roundNumber ? `&round=${roundNumber}` : ""}`,
     icon: cardIcon,
     match: (path: string) => path.includes("/scorecard"),
     requiresTeam: true,
@@ -72,7 +75,7 @@ const allTabs: Tab[] = [
   },
 ]
 
-export default function BottomNav({ tournamentId, teamId }: BottomNavProps) {
+export default function BottomNav({ tournamentId, teamId, roundNumber }: BottomNavProps) {
   const pathname = usePathname()
 
   // Filter tabs: only show team-specific tabs when a team is selected
@@ -82,7 +85,7 @@ export default function BottomNav({ tournamentId, teamId }: BottomNavProps) {
     <nav className="sticky bottom-0 z-10 bg-white border-t border-green-200 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="max-w-md mx-auto flex">
         {visibleTabs.map((tab) => {
-          const href = tab.href || tab.hrefFn!(tournamentId, teamId || undefined)
+          const href = tab.href || tab.hrefFn!(tournamentId, teamId || undefined, roundNumber)
           const active = tab.match(pathname)
 
           return (

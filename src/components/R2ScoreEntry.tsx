@@ -290,34 +290,34 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
       </div>
 
       {/* Skins tracker bar */}
-      {skinsResults && (
-        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-          <div className="max-w-md mx-auto flex items-center justify-between">
-            <div className="flex gap-3">
-              {Object.entries(skinsResults.teamSkins).map(([teamId, skins]) => {
-                const teamName = selectedFoursome.players.find((p) => p.team_id === teamId)?.team_name || "?"
-                return (
-                  <span key={teamId} className="text-xs font-semibold text-green-800">
-                    {teamName}: {skins % 1 === 0 ? skins : skins.toFixed(1)} skins
+      <div className="bg-yellow-50 border-b border-yellow-300 px-4 py-3">
+        <div className="max-w-md mx-auto">
+          <div className="flex flex-col gap-1.5">
+            {Object.entries(skinsResults ? skinsResults.teamSkins : {}).map(([teamId, skins]) => {
+              const teamName = selectedFoursome.players.find((p) => p.team_id === teamId)?.team_name || "?"
+              return (
+                <div key={teamId} className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-yellow-900">{teamName}</span>
+                  <span className="text-sm font-bold text-yellow-800">
+                    {skins % 1 === 0 ? skins : skins.toFixed(1)} skins
                   </span>
-                )
-              })}
-            </div>
-            {skinsResults.currentCarryOver > 0 && (
-              <span className="text-xs font-bold text-yellow-700 bg-yellow-200 px-2 py-0.5 rounded-full">
+                </div>
+              )
+            })}
+            {(!skinsResults || Object.keys(skinsResults.teamSkins).length === 0) && teamNames.map((name) => (
+              <div key={name} className="flex items-center justify-between">
+                <span className="text-sm font-bold text-yellow-900">{name}</span>
+                <span className="text-sm font-bold text-yellow-800">0 skins</span>
+              </div>
+            ))}
+          </div>
+          {skinsResults && skinsResults.currentCarryOver > 0 && (
+            <div className="mt-2 flex justify-center">
+              <span className="text-xs font-bold text-yellow-700 bg-yellow-200 px-3 py-1 rounded-full">
                 {skinsResults.currentCarryOver} on the line!
               </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Foursome info */}
-      <div className="bg-green-50 px-4 py-2 border-b border-green-100">
-        <div className="max-w-md mx-auto">
-          <p className="text-xs text-green-600">
-            {teamNames.join(" vs ")} &middot; {selectedFoursome.players.map((p) => p.name).join(", ")}
-          </p>
+            </div>
+          )}
         </div>
       </div>
 

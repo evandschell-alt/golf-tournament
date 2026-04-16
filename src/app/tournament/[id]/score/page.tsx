@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints, scoreLabel } from "@/lib/scoring"
+import { round1HolePoints, scoreLabel, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
 import R2ScoreEntry from "@/components/R2ScoreEntry"
 import R3ScoreEntry from "@/components/R3ScoreEntry"
@@ -30,6 +30,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const { id: tournamentId } = use(params)
   const searchParams = useSearchParams()
   const teamIdFromUrl = searchParams.get("team")
+  const roundFromUrl = searchParams.get("round")
 
   // State
   const [teams, setTeams] = useState<Team[]>([])
@@ -40,8 +41,11 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tournamentName, setTournamentName] = useState("")
-  const [roundNumber, setRoundNumber] = useState(1)
+  const [roundNumber, setRoundNumber] = useState(roundFromUrl ? parseInt(roundFromUrl) : 1)
   const [roundDropdownOpen, setRoundDropdownOpen] = useState(false)
+  const [allScores, setAllScores] = useState<{ team_id: string; round_number: number; hole_number: number; strokes: number; moneyball_used: boolean; moneyball_lost: boolean; player_id: string | null }[]>([])
+  const [r2Pairings, setR2Pairings] = useState<{ group_number: number; player_id: string }[]>([])
+  const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string }[]>([])
 
   // Moneyball tracking: which hole was the moneyball used on (if any)
   const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
@@ -93,7 +97,28 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           const urlTeam = sorted.find((t) => t.id === teamIdFromUrl)
           if (urlTeam) setSelectedTeam(urlTeam)
         }
+
+        // Fetch all players for total points calc
+        const { data: playersData } = await supabase
+          .from("players")
+          .select("id, team_id")
+          .in("team_id", sorted.map((t) => t.id))
+        setAllPlayers(playersData || [])
       }
+
+      // Fetch all scores across all rounds (for total points)
+      const { data: allScoresData } = await supabase
+        .from("scores")
+        .select("team_id, round_number, hole_number, strokes, moneyball_used, moneyball_lost, player_id")
+        .eq("tournament_id", tournamentId)
+      setAllScores(allScoresData || [])
+
+      // Fetch R2 pairings
+      const { data: pairingsData } = await supabase
+        .from("r2_pairings")
+        .select("group_number, player_id")
+        .eq("tournament_id", tournamentId)
+      setR2Pairings(pairingsData || [])
 
       setLoading(false)
     }
@@ -321,12 +346,14 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   }
 
   // Calculate running total points
-  function getTotalPoints(): number {
+  // R1 points for the selected team (from local state for current round editing)
+  function getR1Points(): number {
+    if (!selectedTeam) return 0
     let total = 0
     holes.forEach((hole) => {
       const hs = scores[hole.hole_number]
       if (!hs) return
-      const players = selectedTeam?.players || []
+      const players = selectedTeam.players
       const allEntered = players.every((p) => hs[p.id]?.strokes > 0)
       if (!allEntered) return
 
@@ -339,6 +366,94 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       total += round1HolePoints(playerData, hole.par).points
     })
     return total
+  }
+
+  // Get round points for a specific team from allScores (for non-active rounds)
+  function getRoundPoints(teamId: string, round: number): number {
+    if (round === 1) {
+      // R1 Best Ball
+      const teamR1 = allScores.filter((s) => s.team_id === teamId && s.round_number === 1)
+      const playerIds = [...new Set(teamR1.filter((s) => s.player_id).map((s) => s.player_id!))]
+      let pts = 0
+      holes.forEach((hole) => {
+        const holeScores = playerIds.map((pid) =>
+          teamR1.find((s) => s.hole_number === hole.hole_number && s.player_id === pid)
+        )
+        if (holeScores.every((s) => s && s.strokes > 0) && holeScores.length >= 4) {
+          const pd = holeScores.map((s) => ({
+            strokes: s!.strokes,
+            moneyball_used: s!.moneyball_used,
+            moneyball_lost: s!.moneyball_lost,
+          }))
+          pts += round1HolePoints(pd, hole.par).points
+        }
+      })
+      return pts
+    }
+
+    if (round === 2) {
+      // R2 Skins
+      const foursomeGroups: { [g: number]: string[] } = {}
+      r2Pairings.forEach((p) => {
+        if (!foursomeGroups[p.group_number]) foursomeGroups[p.group_number] = []
+        foursomeGroups[p.group_number].push(p.player_id)
+      })
+
+      const r2Scores = allScores.filter((s) => s.round_number === 2)
+      let teamSkins = 0
+
+      Object.values(foursomeGroups).forEach((playerIds) => {
+        const foursomeHoles: { holeNumber: number; players: { playerId: string; teamId: string; strokes: number }[] }[] = []
+        holes.forEach((hole) => {
+          const holePlayers = playerIds.map((pid) => {
+            const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
+            const player = allPlayers.find((p) => p.id === pid)
+            return { playerId: pid, teamId: player?.team_id || "", strokes: score?.strokes || 0 }
+          })
+          if (holePlayers.every((p) => p.strokes > 0)) {
+            foursomeHoles.push({ holeNumber: hole.hole_number, players: holePlayers })
+          }
+        })
+
+        if (foursomeHoles.length > 0) {
+          const result = calculateSkins(foursomeHoles)
+          teamSkins += result.teamSkins[teamId] || 0
+        }
+      })
+      return teamSkins
+    }
+
+    if (round === 3) {
+      // R3 Scramble
+      const teamR3 = allScores.filter((s) => s.team_id === teamId && s.round_number === 3)
+      const r3HoleScores: { [h: number]: number } = {}
+      teamR3.forEach((s) => { if (s.strokes > 0) r3HoleScores[s.hole_number] = s.strokes })
+
+      let pts = 0
+      holes.forEach((hole) => {
+        const strokes = r3HoleScores[hole.hole_number]
+        if (strokes && strokes > 0) pts += adjustedStablefordPoints(strokes, hole.par)
+      })
+      return pts
+    }
+
+    return 0
+  }
+
+  // Current round points (uses live editing state for R1, allScores for R2/R3)
+  function getCurrentRoundPoints(): number {
+    if (!selectedTeam) return 0
+    if (roundNumber === 1) return getR1Points()
+    return getRoundPoints(selectedTeam.id, roundNumber)
+  }
+
+  // Total tournament points across all 3 rounds
+  function getTotalTournamentPoints(): number {
+    if (!selectedTeam) return 0
+    const r1 = roundNumber === 1 ? getR1Points() : getRoundPoints(selectedTeam.id, 1)
+    const r2 = getRoundPoints(selectedTeam.id, 2)
+    const r3 = getRoundPoints(selectedTeam.id, 3)
+    return r1 + r2 + r3
   }
 
 
@@ -456,9 +571,9 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           </div>
           <div className="text-right">
             <p className="font-bold text-sm">{selectedTeam.name}</p>
-            {roundNumber === 1 && (
-              <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
-            )}
+            <p className="text-xs text-green-200">
+              {getCurrentRoundPoints()} RD &middot; {getTotalTournamentPoints()} TOT
+            </p>
           </div>
         </div>
       </div>
@@ -663,7 +778,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         />
       )}
 
-      <BottomNav tournamentId={tournamentId} teamId={selectedTeam?.id} />
+      <BottomNav tournamentId={tournamentId} teamId={selectedTeam?.id} roundNumber={roundNumber} />
     </div>
   )
 }

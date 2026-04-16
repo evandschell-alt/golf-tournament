@@ -22,6 +22,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   const { id: tournamentId } = use(params)
   const searchParams = useSearchParams()
   const teamIdFromUrl = searchParams.get("team")
+  const roundFromUrl = searchParams.get("round")
 
   const [teams, setTeams] = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
@@ -29,7 +30,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   const [scores, setScores] = useState<{ [holeNumber: number]: HoleScores }>({})
   const [loading, setLoading] = useState(true)
   const [tournamentName, setTournamentName] = useState("")
-  const [roundNumber] = useState(1)
+  const [roundNumber] = useState(roundFromUrl ? parseInt(roundFromUrl) : 1)
   const [teeBox, setTeeBox] = useState<string>("white")
 
   useEffect(() => {
@@ -208,7 +209,9 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           </div>
           <div className="text-right">
             <p className="font-bold text-sm">{selectedTeam.name}</p>
-            <p className="text-xs text-green-200">RD PTS &middot; {getTotalPoints()}</p>
+            <p className="text-xs text-green-200">
+              {getTotalPoints()} RD &middot; {getTotalPoints()} TOT
+            </p>
           </div>
         </div>
       </div>
@@ -384,7 +387,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
-      <BottomNav tournamentId={tournamentId} teamId={selectedTeam?.id} />
+      <BottomNav tournamentId={tournamentId} teamId={selectedTeam?.id} roundNumber={roundNumber} />
     </div>
   )
 }
