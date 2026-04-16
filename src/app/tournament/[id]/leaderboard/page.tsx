@@ -418,55 +418,6 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
               })}
             </div>
 
-            {/* Scoring key */}
-            <div className="mt-6 rounded-xl bg-white border border-green-200 p-4">
-              <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">Stableford Scoring (R1)</h4>
-              <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                <div>
-                  <p className="font-bold text-green-900">8</p>
-                  <p className="text-green-500">Albatross</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">4</p>
-                  <p className="text-green-500">Eagle</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">2</p>
-                  <p className="text-green-500">Birdie</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">1</p>
-                  <p className="text-green-500">Par</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">0</p>
-                  <p className="text-green-500">Bogey+</p>
-                </div>
-              </div>
-              <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2 mt-4">Adjusted Stableford (R3)</h4>
-              <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                <div>
-                  <p className="font-bold text-green-900">8</p>
-                  <p className="text-green-500">Albatross</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">4</p>
-                  <p className="text-green-500">Eagle</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">1</p>
-                  <p className="text-green-500">Birdie</p>
-                </div>
-                <div>
-                  <p className="font-bold text-green-900">0</p>
-                  <p className="text-green-500">Par</p>
-                </div>
-                <div>
-                  <p className="font-bold text-red-600">-2</p>
-                  <p className="text-green-500">Bogey+</p>
-                </div>
-              </div>
-            </div>
           </>
         )}
       </div>

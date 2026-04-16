@@ -160,6 +160,62 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
             </div>
           </div>
 
+          {/* Scoring rules */}
+          <div className="rounded-xl bg-white border border-green-200 p-4 mb-4">
+            <h3 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-3">Scoring Rules</h3>
+
+            <p className="text-xs font-semibold text-green-700 mb-1.5">R1 &middot; Stableford (Best Ball)</p>
+            <div className="grid grid-cols-5 gap-2 text-center text-xs mb-4">
+              <div>
+                <p className="font-bold text-green-900">8</p>
+                <p className="text-green-500">Albatross</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">4</p>
+                <p className="text-green-500">Eagle</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">2</p>
+                <p className="text-green-500">Birdie</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">1</p>
+                <p className="text-green-500">Par</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">0</p>
+                <p className="text-green-500">Bogey+</p>
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-green-700 mb-1.5">R2 &middot; Skins</p>
+            <p className="text-xs text-green-600 mb-4">1 skin per hole. Lowest score wins outright. Ties carry over. After hole 18, remaining skins split (half-point).</p>
+
+            <p className="text-xs font-semibold text-green-700 mb-1.5">R3 &middot; Adjusted Stableford (Scramble)</p>
+            <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              <div>
+                <p className="font-bold text-green-900">8</p>
+                <p className="text-green-500">Albatross</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">4</p>
+                <p className="text-green-500">Eagle</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">1</p>
+                <p className="text-green-500">Birdie</p>
+              </div>
+              <div>
+                <p className="font-bold text-green-900">0</p>
+                <p className="text-green-500">Par</p>
+              </div>
+              <div>
+                <p className="font-bold text-red-600">-2</p>
+                <p className="text-green-500">Bogey+</p>
+              </div>
+            </div>
+          </div>
+
           {/* R2 Pairings link */}
           <Link
             href={`/tournament/${tournamentId}/pairings`}
