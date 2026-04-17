@@ -71,13 +71,12 @@ export default function Home() {
     <div className="flex flex-col flex-1 bg-green-50 px-4 py-8">
       <div className="w-full max-w-2xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col items-center gap-2 mb-8 text-center">
-          <span className="text-5xl">&#9971;</span>
-          <h1 className="text-4xl font-bold tracking-tight text-green-900">
+        <div className="flex flex-col items-center mb-8 text-center">
+          <h1 className="text-7xl text-green-900 leading-tight" style={{ fontFamily: "var(--font-dancing-script)" }}>
             SuperDay
           </h1>
-          <p className="text-lg text-green-700">
-            Annual Golf Tournament
+          <p className="text-4xl text-green-700" style={{ fontFamily: "var(--font-dancing-script)" }}>
+            Golf
           </p>
         </div>
 
@@ -92,7 +91,7 @@ export default function Home() {
               </p>
             </div>
             <p className="text-sm text-green-600">
-              No tournaments yet. Create one to get started!
+              No SuperDays yet. Create one to get started!
             </p>
           </div>
         ) : (
@@ -164,7 +163,7 @@ export default function Home() {
             href="/setup"
             className="block w-full max-w-xs rounded-xl bg-green-700 py-4 text-base font-semibold text-white text-center shadow-sm hover:bg-green-800 transition-colors"
           >
-            {tournaments.length > 0 ? "Create New Tournament" : "Set Up Tournament"}
+            {tournaments.length > 0 ? "Create New SuperDay" : "Set Up Your SuperDay"}
           </Link>
         </div>
       </div>

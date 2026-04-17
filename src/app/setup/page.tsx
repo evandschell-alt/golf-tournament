@@ -19,13 +19,13 @@ function TournamentStep({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-bold text-green-900">Tournament Info</h2>
+        <h2 className="text-2xl font-bold text-green-900">SuperDay Info</h2>
         <p className="text-sm text-green-700 mt-1">Basic details for this year&apos;s event.</p>
       </div>
 
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-green-800">Tournament Name</span>
+          <span className="text-sm font-medium text-green-800">SuperDay Name</span>
           <input
             type="text"
             value={tournament.name}
@@ -334,7 +334,7 @@ function TeamsStep({
           disabled={!allTeamsValid || saving}
           className="flex-1 rounded-xl bg-green-700 py-4 text-base font-semibold text-white shadow-sm hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {saving ? "Saving..." : "Save Tournament"}
+          {saving ? "Saving..." : "Save SuperDay"}
         </button>
       </div>
     </div>
@@ -348,9 +348,9 @@ function SuccessScreen({ tournamentId }: { tournamentId: string }) {
   return (
     <div className="flex flex-col items-center gap-6 text-center py-8">
       <span className="text-5xl">&#9971;</span>
-      <h2 className="text-2xl font-bold text-green-900">Tournament Created!</h2>
+      <h2 className="text-2xl font-bold text-green-900">SuperDay Created!</h2>
       <p className="text-green-700 max-w-xs">
-        Your SuperDay tournament is all set up. You can now start entering scores when it&apos;s game time.
+        Your SuperDay is all set up. You can now start entering scores when it&apos;s game time.
       </p>
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <a
@@ -363,7 +363,7 @@ function SuccessScreen({ tournamentId }: { tournamentId: string }) {
           href={`/setup?edit=${tournamentId}`}
           className="block w-full rounded-xl border-2 border-green-700 py-4 text-base font-semibold text-green-700 text-center hover:bg-green-50 transition-colors"
         >
-          Edit Tournament
+          Edit SuperDay
         </a>
       </div>
     </div>
