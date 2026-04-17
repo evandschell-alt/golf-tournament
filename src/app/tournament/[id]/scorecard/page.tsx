@@ -824,17 +824,6 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
             )}
           </div>
 
-          {/* Total summary */}
-          <div className="rounded-xl bg-green-900 text-white p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold">Tournament Total</p>
-              <p className="text-xs text-green-300">
-                R1: {r1.points} &middot; R2: {r2.teamSkins % 1 === 0 ? r2.teamSkins : r2.teamSkins.toFixed(1)} &middot; R3: {r3.points}
-              </p>
-            </div>
-            <p className="text-3xl font-bold">{getTotalPoints()} <span className="text-lg">pts</span></p>
-          </div>
-
         </div>
       </div>
 
