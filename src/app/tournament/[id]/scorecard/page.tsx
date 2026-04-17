@@ -336,12 +336,15 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   }
 
   // ===== SCORECARD TABLE HELPERS =====
-  function renderScoreCell(strokes: number, par: number) {
+  function renderScoreCell(strokes: number, par: number, moneyball?: boolean) {
     const diff = strokes - par
+    const numColor = moneyball ? "text-amber-500 font-bold" : "text-green-900"
+    const borderColor = moneyball ? "border-amber-400" : "border-green-800"
+    const outlineColor = moneyball ? "outline-amber-400" : "outline-green-800"
     if (diff <= -2) {
       // Eagle or better: double circle
       return (
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-green-800 outline outline-1 outline-green-800 outline-offset-1 text-green-900 font-bold text-xs">
+        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full border ${borderColor} outline outline-1 ${outlineColor} outline-offset-1 ${numColor} font-bold text-xs`}>
           {strokes}
         </span>
       )
@@ -349,7 +352,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     if (diff === -1) {
       // Birdie: single circle
       return (
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-green-800 text-green-900 font-bold text-xs">
+        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full border ${borderColor} ${numColor} font-bold text-xs`}>
           {strokes}
         </span>
       )
@@ -357,7 +360,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     if (diff === 1) {
       // Bogey: single square
       return (
-        <span className="inline-flex items-center justify-center w-5 h-5 border border-green-800 text-green-900 text-xs">
+        <span className={`inline-flex items-center justify-center w-5 h-5 border ${borderColor} ${numColor} text-xs`}>
           {strokes}
         </span>
       )
@@ -365,21 +368,23 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     if (diff >= 2) {
       // Double bogey or worse: double square
       return (
-        <span className="inline-flex items-center justify-center w-5 h-5 border border-green-800 outline outline-1 outline-green-800 outline-offset-1 text-green-900 text-xs">
+        <span className={`inline-flex items-center justify-center w-5 h-5 border ${borderColor} outline outline-1 ${outlineColor} outline-offset-1 ${numColor} text-xs`}>
           {strokes}
         </span>
       )
     }
     // Par: plain
-    return <span className="text-green-900 text-xs">{strokes}</span>
+    return <span className={`${numColor} text-xs`}>{strokes}</span>
   }
 
   function renderNineTable(
     holeRange: Hole[],
-    playerRows: { name: string; getData: (hNum: number) => number | null }[],
+    playerRows: { name: string; getData: (hNum: number) => number | null; getMoneyball?: (hNum: number) => boolean }[],
     getPoints: (hNum: number) => number | null,
-    pointsLabel: string
+    pointsLabel: string,
+    totalHoles?: Hole[]  // when provided, "Tot" column sums all these holes (e.g. all 18 for back 9 view)
   ) {
+    const totHoles = totalHoles ?? holeRange
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -400,13 +405,18 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
               ))}
               <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                {holeRange.reduce((s, h) => s + h.par, 0)}
+                {totHoles.reduce((s, h) => s + h.par, 0)}
               </td>
             </tr>
             {/* Player score rows */}
             {playerRows.map((player, i) => {
+              // Compute total from totHoles (all 18 on back 9 view, front 9 on front 9 view)
               let total = 0
               let count = 0
+              totHoles.forEach((h) => {
+                const s = player.getData(h.hole_number)
+                if (s && s > 0) { total += s; count++ }
+              })
               return (
                 <tr key={i} className={i < playerRows.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
                   <td className="px-2 py-2 text-xs text-green-800 font-semibold sticky left-0 bg-white truncate max-w-[3.5rem]">
@@ -414,10 +424,10 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                   </td>
                   {holeRange.map((h) => {
                     const strokes = player.getData(h.hole_number)
-                    if (strokes && strokes > 0) { total += strokes; count++ }
+                    const mb = player.getMoneyball?.(h.hole_number) ?? false
                     return (
                       <td key={h.hole_number} className="px-1 py-2 text-center">
-                        {strokes ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
+                        {strokes ? renderScoreCell(strokes, h.par, mb) : <span className="text-gray-300 text-xs">–</span>}
                       </td>
                     )
                   })}
@@ -441,7 +451,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 )
               })}
               <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
-                {holeRange.reduce((s, h) => s + (getPoints(h.hole_number) || 0), 0)}
+                {totHoles.reduce((s, h) => s + (getPoints(h.hole_number) || 0), 0)}
               </td>
             </tr>
           </tbody>
@@ -481,7 +491,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               {renderNineTable(front9, playerRows, getPoints, pointsLabel)}
             </div>
             <div className="w-full flex-shrink-0 px-3 py-2">
-              {renderNineTable(back9, playerRows, getPoints, pointsLabel)}
+              {renderNineTable(back9, playerRows, getPoints, pointsLabel, holes)}
             </div>
           </div>
         </div>
@@ -602,6 +612,11 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                   const score = teamR1.find((s) => s.hole_number === hNum && s.player_id === player.id)
                   return score?.strokes || null
                 },
+                getMoneyball: (hNum: number) => {
+                  const teamR1 = allScores.filter((s) => s.team_id === selectedTeam!.id && s.round_number === 1)
+                  const score = teamR1.find((s) => s.hole_number === hNum && s.player_id === player.id)
+                  return (score?.moneyball_used && !score?.moneyball_lost) ?? false
+                },
               })),
               (hNum) => {
                 const data = getR1HoleData(hNum)
@@ -639,7 +654,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 return <div className="px-4 py-3"><p className="text-sm text-gray-400 text-center py-2">No skins results yet</p></div>
               }
 
-              function renderR2Table(holeRange: Hole[], foursome: (typeof foursomes)[0]) {
+              function renderR2Table(holeRange: Hole[], foursome: (typeof foursomes)[0], totalHoles?: Hole[]) {
+                const totHoles = totalHoles ?? holeRange
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -659,13 +675,19 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                             <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
                           ))}
                           <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                            {holeRange.reduce((s, h) => s + h.par, 0)}
+                            {totHoles.reduce((s, h) => s + h.par, 0)}
                           </td>
                         </tr>
                         {foursome.players.map((player, i) => {
+                          const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
+                          // Compute total from totHoles
                           let total = 0
                           let count = 0
-                          const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
+                          totHoles.forEach((h) => {
+                            const score = r2AllScores.find((s) => s.player_id === player.id && s.hole_number === h.hole_number)
+                            const strokes = score?.strokes || 0
+                            if (strokes > 0) { total += strokes; count++ }
+                          })
                           return (
                             <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
                               <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-green-800" : "text-gray-400"}`}>
@@ -674,7 +696,6 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                               {holeRange.map((h) => {
                                 const score = r2AllScores.find((s) => s.player_id === player.id && s.hole_number === h.hole_number)
                                 const strokes = score?.strokes || 0
-                                if (strokes > 0) { total += strokes; count++ }
                                 return (
                                   <td key={h.hole_number} className="px-1 py-2 text-center">
                                     {strokes > 0 ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
@@ -710,6 +731,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                               </td>
                             )
                           })}
+                          {/* Always show total skins for the full group regardless of which 9 is displayed */}
                           <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
                             {foursome.teamSkinsInGroup % 1 === 0 ? foursome.teamSkinsInGroup : foursome.teamSkinsInGroup.toFixed(1)}
                           </td>
@@ -772,7 +794,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                                   {renderR2Table(front9, f)}
                                 </div>
                                 <div className="w-full flex-shrink-0 px-3 py-2">
-                                  {renderR2Table(back9, f)}
+                                  {renderR2Table(back9, f, holes)}
                                 </div>
                               </div>
                             </div>
