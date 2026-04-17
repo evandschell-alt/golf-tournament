@@ -298,7 +298,6 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   }
 
   const leader = standings[0]
-  const hasScores = scores.length > 0
 
   return (
     <div className="flex flex-col flex-1 bg-green-50">
@@ -324,10 +323,10 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
           <p className="text-xs text-green-400 mt-2">Tap a team to enter scores</p>
         </div>
 
-        {!hasScores ? (
+        {standings.length === 0 ? (
           <div className="rounded-xl bg-white border border-green-200 p-8 text-center">
-            <p className="text-green-600">No scores entered yet.</p>
-            <p className="text-sm text-green-500 mt-1">Scores will appear here in real time once a captain starts entering them.</p>
+            <p className="text-green-600">No teams set up yet.</p>
+            <p className="text-sm text-green-500 mt-1">Add teams in settings to get started.</p>
           </div>
         ) : (
           <>
