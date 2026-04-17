@@ -267,9 +267,47 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   }
 
   // ===== SCORECARD TABLE HELPERS =====
+  function renderScoreCell(strokes: number, par: number) {
+    const diff = strokes - par
+    if (diff <= -2) {
+      // Eagle or better: double circle
+      return (
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-green-800 outline outline-1 outline-green-800 outline-offset-1 text-green-900 font-bold text-xs">
+          {strokes}
+        </span>
+      )
+    }
+    if (diff === -1) {
+      // Birdie: single circle
+      return (
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-green-800 text-green-900 font-bold text-xs">
+          {strokes}
+        </span>
+      )
+    }
+    if (diff === 1) {
+      // Bogey: single square
+      return (
+        <span className="inline-flex items-center justify-center w-5 h-5 border border-green-800 text-green-900 text-xs">
+          {strokes}
+        </span>
+      )
+    }
+    if (diff >= 2) {
+      // Double bogey or worse: double square
+      return (
+        <span className="inline-flex items-center justify-center w-5 h-5 border border-green-800 outline outline-1 outline-green-800 outline-offset-1 text-green-900 text-xs">
+          {strokes}
+        </span>
+      )
+    }
+    // Par: plain
+    return <span className="text-green-900 text-xs">{strokes}</span>
+  }
+
   function renderNineTable(
     holeRange: Hole[],
-    playerRows: { name: string; getData: (hNum: number) => { strokes: number; colorClass: string } | null }[],
+    playerRows: { name: string; getData: (hNum: number) => number | null }[],
     getPoints: (hNum: number) => number | null,
     pointsLabel: string
   ) {
@@ -306,11 +344,11 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                     {player.name}
                   </td>
                   {holeRange.map((h) => {
-                    const data = player.getData(h.hole_number)
-                    if (data && data.strokes > 0) { total += data.strokes; count++ }
+                    const strokes = player.getData(h.hole_number)
+                    if (strokes && strokes > 0) { total += strokes; count++ }
                     return (
-                      <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${data ? data.colorClass : "text-gray-300"}`}>
-                        {data ? data.strokes : "–"}
+                      <td key={h.hole_number} className="px-1 py-1.5 text-center">
+                        {strokes ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
                       </td>
                     )
                   })}
@@ -345,7 +383,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
   function renderSwipeableNines(
     round: number,
-    playerRows: { name: string; getData: (hNum: number) => { strokes: number; colorClass: string } | null }[],
+    playerRows: { name: string; getData: (hNum: number) => number | null }[],
     getPoints: (hNum: number) => number | null,
     pointsLabel: string
   ) {
@@ -493,13 +531,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 getData: (hNum: number) => {
                   const teamR1 = allScores.filter((s) => s.team_id === selectedTeam!.id && s.round_number === 1)
                   const score = teamR1.find((s) => s.hole_number === hNum && s.player_id === player.id)
-                  if (!score || !score.strokes) return null
-                  const hole = holes.find((h) => h.hole_number === hNum)!
-                  const diff = score.strokes - hole.par
-                  return {
-                    strokes: score.strokes,
-                    colorClass: diff < 0 ? "text-red-600 font-bold" : diff > 0 ? "text-blue-600" : "text-green-900",
-                  }
+                  return score?.strokes || null
                 },
               })),
               (hNum) => {
@@ -591,12 +623,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 name: "Score",
                 getData: (hNum: number) => {
                   const data = getR3HoleData(hNum)
-                  if (!data) return null
-                  const hole = holes.find((h) => h.hole_number === hNum)!
-                  return {
-                    strokes: data.strokes,
-                    colorClass: data.strokes < hole.par ? "text-red-600 font-bold" : data.strokes > hole.par ? "text-blue-600" : "text-green-900",
-                  }
+                  return data?.strokes || null
                 },
               }],
               (hNum) => {
