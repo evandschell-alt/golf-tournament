@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect, useRef, use } from "react"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { round1HolePoints, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
@@ -53,8 +53,29 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     3: false,
   })
 
+  // Which nine is visible per round (front or back)
+  const [activeNine, setActiveNine] = useState<{ [r: number]: "front" | "back" }>({
+    1: "front",
+    3: "front",
+  })
+  const touchStartX = useRef(0)
+
   function toggleRound(r: number) {
     setExpandedRounds((prev) => ({ ...prev, [r]: !prev[r] }))
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchEnd(round: number, e: React.TouchEvent) {
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 50) {
+      setActiveNine((prev) => ({
+        ...prev,
+        [round]: diff > 0 ? "back" : "front",
+      }))
+    }
   }
 
   useEffect(() => {
@@ -245,14 +266,19 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     return getR1Total().points + getR2SkinsForTeam().teamSkins + getR3Total().points
   }
 
-  // ===== SCORECARD TABLE HELPER =====
-  function renderNineHoles(holeRange: Hole[], getRoundHoleData: (h: number) => { score: number; points?: number; colorClass: string } | null, showPoints: boolean) {
+  // ===== SCORECARD TABLE HELPERS =====
+  function renderNineTable(
+    holeRange: Hole[],
+    playerRows: { name: string; getData: (hNum: number) => { strokes: number; colorClass: string } | null }[],
+    getPoints: (hNum: number) => number | null,
+    pointsLabel: string
+  ) {
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-green-100">
-              <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-white">Hole</th>
+              <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-white min-w-[3.5rem]">Hole</th>
               {holeRange.map((h) => (
                 <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
               ))}
@@ -260,6 +286,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
             </tr>
           </thead>
           <tbody>
+            {/* Par row */}
             <tr className="border-b border-green-50">
               <td className="px-2 py-1.5 text-xs text-green-600 sticky left-0 bg-white">Par</td>
               {holeRange.map((h) => (
@@ -269,40 +296,92 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 {holeRange.reduce((s, h) => s + h.par, 0)}
               </td>
             </tr>
-            <tr className={showPoints ? "border-b border-green-50" : ""}>
-              <td className="px-2 py-1.5 text-xs text-green-600 sticky left-0 bg-white">Score</td>
+            {/* Player score rows */}
+            {playerRows.map((player, i) => {
+              let total = 0
+              let count = 0
+              return (
+                <tr key={i} className="border-b border-green-50">
+                  <td className="px-2 py-1.5 text-xs text-green-700 font-medium sticky left-0 bg-white truncate max-w-[3.5rem]">
+                    {player.name}
+                  </td>
+                  {holeRange.map((h) => {
+                    const data = player.getData(h.hole_number)
+                    if (data && data.strokes > 0) { total += data.strokes; count++ }
+                    return (
+                      <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${data ? data.colorClass : "text-gray-300"}`}>
+                        {data ? data.strokes : "–"}
+                      </td>
+                    )
+                  })}
+                  <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                    {count > 0 ? total : "–"}
+                  </td>
+                </tr>
+              )
+            })}
+            {/* Points row */}
+            <tr>
+              <td className="px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-white">{pointsLabel}</td>
               {holeRange.map((h) => {
-                const data = getRoundHoleData(h.hole_number)
+                const pts = getPoints(h.hole_number)
                 return (
-                  <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-medium ${data ? data.colorClass : "text-gray-300"}`}>
-                    {data ? data.score : "–"}
+                  <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
+                    pts !== null ? (pts > 0 ? "text-green-700" : pts < 0 ? "text-red-600" : "text-gray-400") : "text-gray-300"
+                  }`}>
+                    {pts !== null ? pts : "–"}
                   </td>
                 )
               })}
               <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                {holeRange.reduce((s, h) => { const d = getRoundHoleData(h.hole_number); return s + (d ? d.score : 0) }, 0) || "–"}
+                {holeRange.reduce((s, h) => s + (getPoints(h.hole_number) || 0), 0)}
               </td>
             </tr>
-            {showPoints && (
-              <tr>
-                <td className="px-2 py-1.5 text-xs text-green-600 sticky left-0 bg-white">Pts</td>
-                {holeRange.map((h) => {
-                  const data = getRoundHoleData(h.hole_number)
-                  return (
-                    <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
-                      data && data.points !== undefined ? (data.points > 0 ? "text-green-700" : data.points < 0 ? "text-red-600" : "text-gray-400") : "text-gray-300"
-                    }`}>
-                      {data && data.points !== undefined ? data.points : "–"}
-                    </td>
-                  )
-                })}
-                <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                  {holeRange.reduce((s, h) => { const d = getRoundHoleData(h.hole_number); return s + (d?.points || 0) }, 0)}
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
+      </div>
+    )
+  }
+
+  function renderSwipeableNines(
+    round: number,
+    playerRows: { name: string; getData: (hNum: number) => { strokes: number; colorClass: string } | null }[],
+    getPoints: (hNum: number) => number | null,
+    pointsLabel: string
+  ) {
+    const nine = activeNine[round] || "front"
+    return (
+      <div>
+        {/* Front 9 / Back 9 indicator */}
+        <div className="flex items-center justify-center gap-3 pt-3 pb-1">
+          <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-green-700" : "bg-green-300"}`} />
+          <p className="text-xs font-semibold text-green-600">
+            {nine === "front" ? "Front 9" : "Back 9"}
+          </p>
+          <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-green-700" : "bg-green-300"}`} />
+        </div>
+        {/* Swipeable container */}
+        <div
+          className="overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={(e) => handleTouchEnd(round, e)}
+        >
+          <div
+            className="flex transition-transform duration-300 ease-out"
+            style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
+          >
+            <div className="w-full flex-shrink-0 px-3 py-2">
+              {renderNineTable(front9, playerRows, getPoints, pointsLabel)}
+            </div>
+            <div className="w-full flex-shrink-0 px-3 py-2">
+              {renderNineTable(back9, playerRows, getPoints, pointsLabel)}
+            </div>
+          </div>
+        </div>
+        {/* Swipe hint */}
+        <p className="text-center text-[10px] text-green-400 pb-2">
+          Swipe {nine === "front" ? "left for back 9" : "right for front 9"}
+        </p>
       </div>
     )
   }
@@ -407,88 +486,27 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               </div>
             </button>
 
-            {expandedRounds[1] && (
-              <div>
-                {/* Individual player scores */}
-                <div className="px-4 py-3 border-b border-green-100">
-                  <p className="text-xs font-semibold text-green-600 mb-2">Individual Scores</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-green-100">
-                          <th className="text-left px-1 py-1 text-green-600 font-semibold sticky left-0 bg-white min-w-[4rem]"></th>
-                          {holes.map((h) => (
-                            <th key={h.hole_number} className="px-0.5 py-1 text-green-500 font-medium text-center min-w-[1.5rem]">{h.hole_number}</th>
-                          ))}
-                          <th className="px-1 py-1 text-green-800 font-bold text-center">Tot</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedTeam.players.map((player) => {
-                          const teamR1 = allScores.filter((s) => s.team_id === selectedTeam.id && s.round_number === 1)
-                          let playerTotal = 0
-                          let holesPlayed = 0
-
-                          return (
-                            <tr key={player.id} className="border-b border-green-50 last:border-0">
-                              <td className="px-1 py-1 text-green-700 font-medium sticky left-0 bg-white truncate max-w-[4rem]">
-                                {player.name.split(" ")[0]}
-                              </td>
-                              {holes.map((h) => {
-                                const score = teamR1.find((s) => s.hole_number === h.hole_number && s.player_id === player.id)
-                                const strokes = score?.strokes || 0
-                                if (strokes > 0) { playerTotal += strokes; holesPlayed++ }
-                                const diff = strokes - h.par
-                                return (
-                                  <td key={h.hole_number} className={`px-0.5 py-1 text-center ${
-                                    strokes === 0 ? "text-gray-300" :
-                                    diff < 0 ? "text-red-600 font-bold" :
-                                    diff > 0 ? "text-blue-600" :
-                                    "text-green-900"
-                                  }`}>
-                                    {strokes || "–"}
-                                  </td>
-                                )
-                              })}
-                              <td className="px-1 py-1 text-green-800 font-bold text-center">
-                                {holesPlayed > 0 ? playerTotal : "–"}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Best Ball + Points tables */}
-                <div className="px-3 py-2">
-                  <p className="text-xs font-semibold text-green-600 mb-1 px-1">Front 9</p>
-                  {renderNineHoles(front9, (hNum) => {
-                    const data = getR1HoleData(hNum)
-                    if (!data) return null
-                    const hole = holes.find((h) => h.hole_number === hNum)!
-                    return {
-                      score: data.bestScore,
-                      points: data.points,
-                      colorClass: data.bestScore < hole.par ? "text-red-600 font-bold" : data.bestScore > hole.par ? "text-blue-600" : "text-green-900",
-                    }
-                  }, true)}
-                </div>
-                <div className="px-3 py-2 border-t border-green-50">
-                  <p className="text-xs font-semibold text-green-600 mb-1 px-1">Back 9</p>
-                  {renderNineHoles(back9, (hNum) => {
-                    const data = getR1HoleData(hNum)
-                    if (!data) return null
-                    const hole = holes.find((h) => h.hole_number === hNum)!
-                    return {
-                      score: data.bestScore,
-                      points: data.points,
-                      colorClass: data.bestScore < hole.par ? "text-red-600 font-bold" : data.bestScore > hole.par ? "text-blue-600" : "text-green-900",
-                    }
-                  }, true)}
-                </div>
-              </div>
+            {expandedRounds[1] && renderSwipeableNines(
+              1,
+              selectedTeam.players.map((player) => ({
+                name: player.name.split(" ")[0],
+                getData: (hNum: number) => {
+                  const teamR1 = allScores.filter((s) => s.team_id === selectedTeam!.id && s.round_number === 1)
+                  const score = teamR1.find((s) => s.hole_number === hNum && s.player_id === player.id)
+                  if (!score || !score.strokes) return null
+                  const hole = holes.find((h) => h.hole_number === hNum)!
+                  const diff = score.strokes - hole.par
+                  return {
+                    strokes: score.strokes,
+                    colorClass: diff < 0 ? "text-red-600 font-bold" : diff > 0 ? "text-blue-600" : "text-green-900",
+                  }
+                },
+              })),
+              (hNum) => {
+                const data = getR1HoleData(hNum)
+                return data ? data.points : null
+              },
+              "Pts"
             )}
           </div>
 
@@ -567,35 +585,25 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               </div>
             </button>
 
-            {expandedRounds[3] && (
-              <div>
-                <div className="px-3 py-2">
-                  <p className="text-xs font-semibold text-green-600 mb-1 px-1">Front 9</p>
-                  {renderNineHoles(front9, (hNum) => {
-                    const data = getR3HoleData(hNum)
-                    if (!data) return null
-                    const hole = holes.find((h) => h.hole_number === hNum)!
-                    return {
-                      score: data.strokes,
-                      points: data.points,
-                      colorClass: data.strokes < hole.par ? "text-red-600 font-bold" : data.strokes > hole.par ? "text-blue-600" : "text-green-900",
-                    }
-                  }, true)}
-                </div>
-                <div className="px-3 py-2 border-t border-green-50">
-                  <p className="text-xs font-semibold text-green-600 mb-1 px-1">Back 9</p>
-                  {renderNineHoles(back9, (hNum) => {
-                    const data = getR3HoleData(hNum)
-                    if (!data) return null
-                    const hole = holes.find((h) => h.hole_number === hNum)!
-                    return {
-                      score: data.strokes,
-                      points: data.points,
-                      colorClass: data.strokes < hole.par ? "text-red-600 font-bold" : data.strokes > hole.par ? "text-blue-600" : "text-green-900",
-                    }
-                  }, true)}
-                </div>
-              </div>
+            {expandedRounds[3] && renderSwipeableNines(
+              3,
+              [{
+                name: "Score",
+                getData: (hNum: number) => {
+                  const data = getR3HoleData(hNum)
+                  if (!data) return null
+                  const hole = holes.find((h) => h.hole_number === hNum)!
+                  return {
+                    strokes: data.strokes,
+                    colorClass: data.strokes < hole.par ? "text-red-600 font-bold" : data.strokes > hole.par ? "text-blue-600" : "text-green-900",
+                  }
+                },
+              }],
+              (hNum) => {
+                const data = getR3HoleData(hNum)
+                return data ? data.points : null
+              },
+              "Pts"
             )}
           </div>
 
