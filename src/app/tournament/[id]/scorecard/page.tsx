@@ -315,8 +315,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-green-100">
-              <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-white min-w-[3.5rem]">Hole</th>
+            <tr className="bg-green-50">
+              <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-green-50 min-w-[3.5rem]">Hole</th>
               {holeRange.map((h) => (
                 <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
               ))}
@@ -325,8 +325,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           </thead>
           <tbody>
             {/* Par row */}
-            <tr className="border-b border-green-50">
-              <td className="px-2 py-1.5 text-xs text-green-600 sticky left-0 bg-white">Par</td>
+            <tr className="bg-green-50 border-b-2 border-green-200">
+              <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
               {holeRange.map((h) => (
                 <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
               ))}
@@ -339,39 +339,39 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               let total = 0
               let count = 0
               return (
-                <tr key={i} className="border-b border-green-50">
-                  <td className="px-2 py-1.5 text-xs text-green-700 font-medium sticky left-0 bg-white truncate max-w-[3.5rem]">
+                <tr key={i} className={i < playerRows.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
+                  <td className="px-2 py-2 text-xs text-green-800 font-semibold sticky left-0 bg-white truncate max-w-[3.5rem]">
                     {player.name}
                   </td>
                   {holeRange.map((h) => {
                     const strokes = player.getData(h.hole_number)
                     if (strokes && strokes > 0) { total += strokes; count++ }
                     return (
-                      <td key={h.hole_number} className="px-1 py-1.5 text-center">
+                      <td key={h.hole_number} className="px-1 py-2 text-center">
                         {strokes ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
                       </td>
                     )
                   })}
-                  <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                  <td className="px-2 py-2 text-xs text-green-800 font-bold text-center">
                     {count > 0 ? total : "–"}
                   </td>
                 </tr>
               )
             })}
             {/* Points row */}
-            <tr>
-              <td className="px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-white">{pointsLabel}</td>
+            <tr className="bg-green-100">
+              <td className="px-2 py-2 text-xs text-green-800 font-bold sticky left-0 bg-green-100">{pointsLabel}</td>
               {holeRange.map((h) => {
                 const pts = getPoints(h.hole_number)
                 return (
-                  <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center font-bold ${
-                    pts !== null ? (pts > 0 ? "text-green-700" : pts < 0 ? "text-red-600" : "text-gray-400") : "text-gray-300"
+                  <td key={h.hole_number} className={`px-1 py-2 text-xs text-center font-bold ${
+                    pts !== null ? (pts > 0 ? "text-green-800" : pts < 0 ? "text-red-600" : "text-gray-400") : "text-gray-300"
                   }`}>
                     {pts !== null ? pts : "–"}
                   </td>
                 )
               })}
-              <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+              <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
                 {holeRange.reduce((s, h) => s + (getPoints(h.hole_number) || 0), 0)}
               </td>
             </tr>
