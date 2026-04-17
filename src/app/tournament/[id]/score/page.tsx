@@ -62,8 +62,8 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const [r2Pairings, setR2Pairings] = useState<{ group_number: number; player_id: string }[]>([])
   const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string }[]>([])
 
-  // Moneyball tracking: which hole was the moneyball used on (if any)
-  const [moneyballHole, setMoneyballHole] = useState<number | null>(null)
+  // Moneyball tracking: per-player, which hole they used their moneyball on (if any)
+  const [moneyballByPlayer, setMoneyballByPlayer] = useState<{ [playerId: string]: number }>({})
   const [teeBox, setTeeBox] = useState<string>("white")
   const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
 
@@ -178,7 +178,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
       if (existingScores && existingScores.length > 0) {
         const loaded: { [holeNumber: number]: HoleScores } = {}
-        let mbHole: number | null = null
+        const mbByPlayer: { [playerId: string]: number } = {}
 
         existingScores.forEach((s) => {
           if (!loaded[s.hole_number]) loaded[s.hole_number] = {}
@@ -188,12 +188,12 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               moneyball_used: s.moneyball_used,
               moneyball_lost: s.moneyball_lost,
             }
-            if (s.moneyball_used) mbHole = s.hole_number
+            if (s.moneyball_used) mbByPlayer[s.player_id] = s.hole_number
           }
         })
 
         setScores(loaded)
-        setMoneyballHole(mbHole)
+        setMoneyballByPlayer(mbByPlayer)
       }
     }
 
@@ -240,38 +240,28 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   }
 
   // Toggle moneyball for a player on a hole
+  // Each player has their own moneyball — tracked independently per player
   function toggleMoneyball(holeNumber: number, playerId: string) {
     const holeScores = { ...getHoleScores(holeNumber) }
     const playerScore = { ...holeScores[playerId] }
 
     if (playerScore.moneyball_used) {
-      // Turn off moneyball
+      // Turn off — player is un-using their moneyball on this hole
       playerScore.moneyball_used = false
       playerScore.moneyball_lost = false
       holeScores[playerId] = playerScore
       setScores({ ...scores, [holeNumber]: holeScores })
-      setMoneyballHole(null)
+      setMoneyballByPlayer((prev) => {
+        const next = { ...prev }
+        delete next[playerId]
+        return next
+      })
     } else {
-      // Turn on moneyball — clear it from any other player/hole first
-      const updated = { ...scores }
-
-      // Clear any existing moneyball
-      if (moneyballHole !== null && updated[moneyballHole]) {
-        const oldHoleScores = { ...updated[moneyballHole] }
-        Object.keys(oldHoleScores).forEach((pid) => {
-          if (oldHoleScores[pid].moneyball_used) {
-            oldHoleScores[pid] = { ...oldHoleScores[pid], moneyball_used: false, moneyball_lost: false }
-          }
-        })
-        updated[moneyballHole] = oldHoleScores
-      }
-
-      // Set new moneyball
+      // Turn on — player is using their moneyball on this hole
       playerScore.moneyball_used = true
       holeScores[playerId] = playerScore
-      updated[holeNumber] = holeScores
-      setScores(updated)
-      setMoneyballHole(holeNumber)
+      setScores({ ...scores, [holeNumber]: holeScores })
+      setMoneyballByPlayer((prev) => ({ ...prev, [playerId]: holeNumber }))
     }
   }
 
@@ -533,8 +523,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     bestScore = result.bestScore
   }
 
-  const moneyballAvailable = moneyballHole === null || moneyballHole === currentHole
-
   return (
     <div className="flex flex-col flex-1 bg-green-50">
       {/* Close round dropdown overlay — must be BEFORE the header so header content stays on top */}
@@ -676,6 +664,11 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             const isBestBall = allEntered && bestScore !== null &&
               (ps.strokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)) === bestScore
 
+            // Per-player moneyball state
+            const playerMbHole = moneyballByPlayer[player.id] ?? null
+            const mbUsedOnThisHole = playerMbHole === currentHole
+            const mbUsedElsewhere = playerMbHole !== null && playerMbHole !== currentHole
+
             return (
               <div
                 key={player.id}
@@ -711,34 +704,39 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
                   </button>
                 </div>
 
-                {/* Moneyball toggle */}
-                {(moneyballAvailable || ps.moneyball_used) && (
-                  <div className="flex flex-col gap-2">
+                {/* Moneyball — always visible; strikethrough if already used on a different hole */}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => !mbUsedElsewhere && toggleMoneyball(currentHole, player.id)}
+                    disabled={mbUsedElsewhere}
+                    className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
+                      mbUsedOnThisHole
+                        ? "bg-yellow-400 text-yellow-900"
+                        : mbUsedElsewhere
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
+                        : "bg-gray-100 text-gray-500 hover:bg-yellow-100"
+                    }`}
+                  >
+                    {mbUsedOnThisHole
+                      ? "Moneyball Active"
+                      : mbUsedElsewhere
+                      ? `Used on Hole ${playerMbHole}`
+                      : "Use Moneyball"}
+                  </button>
+
+                  {mbUsedOnThisHole && (
                     <button
-                      onClick={() => toggleMoneyball(currentHole, player.id)}
+                      onClick={() => toggleMoneyballLost(currentHole, player.id)}
                       className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
-                        ps.moneyball_used
-                          ? "bg-yellow-400 text-yellow-900"
-                          : "bg-gray-100 text-gray-500 hover:bg-yellow-100"
+                        ps.moneyball_lost
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-500 hover:bg-red-50"
                       }`}
                     >
-                      {ps.moneyball_used ? "Moneyball Active" : "Use Moneyball"}
+                      {ps.moneyball_lost ? "Moneyball Lost (no bonus)" : "Mark Ball Lost"}
                     </button>
-
-                    {ps.moneyball_used && (
-                      <button
-                        onClick={() => toggleMoneyballLost(currentHole, player.id)}
-                        className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
-                          ps.moneyball_lost
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-500 hover:bg-red-50"
-                        }`}
-                      >
-                        {ps.moneyball_lost ? "Moneyball Lost (no bonus)" : "Mark Ball Lost"}
-                      </button>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Score label */}
                 {ps.strokes > 0 && (
@@ -757,10 +755,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           <div className="flex gap-3 mt-2 pb-4">
             <button
               onClick={() => {
-                if (currentHole > 1) {
-                  unsaveHoleScores(currentHole)
-                  setCurrentHole(currentHole - 1)
-                }
+                if (currentHole > 1) setCurrentHole(currentHole - 1)
               }}
               disabled={currentHole === 1}
               className="flex-1 rounded-xl border-2 border-green-700 py-3 text-sm font-semibold text-green-700 disabled:opacity-30 transition-colors"
