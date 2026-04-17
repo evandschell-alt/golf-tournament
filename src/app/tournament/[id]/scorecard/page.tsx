@@ -59,10 +59,16 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     2: "front",
     3: "front",
   })
+  // Which R2 groups are expanded
+  const [expandedGroups, setExpandedGroups] = useState<{ [g: number]: boolean }>({})
   const touchStartX = useRef(0)
 
   function toggleRound(r: number) {
     setExpandedRounds((prev) => ({ ...prev, [r]: !prev[r] }))
+  }
+
+  function toggleGroup(g: number) {
+    setExpandedGroups((prev) => ({ ...prev, [g]: !prev[g] }))
   }
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -627,7 +633,6 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
             {expandedRounds[2] && (() => {
               const foursomes = getR2Foursomes()
-              const nine = activeNine[2] || "front"
               const r2AllScores = allScores.filter((s) => s.round_number === 2)
 
               if (foursomes.length === 0) {
@@ -636,117 +641,149 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
               function renderR2Table(holeRange: Hole[], foursome: (typeof foursomes)[0]) {
                 return (
-                  <div key={foursome.groupNumber} className="mb-3">
-                    <p className="text-xs font-semibold text-green-700 mb-1 px-1">Group {foursome.groupNumber}</p>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-green-50">
-                            <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-green-50 min-w-[3.5rem]">Hole</th>
-                            {holeRange.map((h) => (
-                              <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
-                            ))}
-                            <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="bg-green-50 border-b-2 border-green-200">
-                            <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
-                            {holeRange.map((h) => (
-                              <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
-                            ))}
-                            <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                              {holeRange.reduce((s, h) => s + h.par, 0)}
-                            </td>
-                          </tr>
-                          {foursome.players.map((player, i) => {
-                            let total = 0
-                            let count = 0
-                            const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
-                            return (
-                              <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
-                                <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-green-800" : "text-gray-400"}`}>
-                                  {player.name.split(" ")[0]}
-                                </td>
-                                {holeRange.map((h) => {
-                                  const score = r2AllScores.find((s) => s.player_id === player.id && s.hole_number === h.hole_number)
-                                  const strokes = score?.strokes || 0
-                                  if (strokes > 0) { total += strokes; count++ }
-                                  return (
-                                    <td key={h.hole_number} className="px-1 py-2 text-center">
-                                      {strokes > 0 ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
-                                    </td>
-                                  )
-                                })}
-                                <td className="px-2 py-2 text-xs text-green-800 font-bold text-center">
-                                  {count > 0 ? total : "–"}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                          <tr className="bg-green-100">
-                            <td className="px-2 py-2 text-xs text-green-800 font-bold sticky left-0 bg-green-100">Skins</td>
-                            {holeRange.map((h) => {
-                              const result = foursome.holeResults[h.hole_number]
-                              if (!result) {
-                                return <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-gray-300">–</td>
-                              }
-                              if (result.winner) {
-                                const isOurTeam = result.winner.teamId === selectedTeam!.id
-                                const winnerTeam = teams.find((t) => t.id === result.winner!.teamId)
-                                const teamInitial = winnerTeam?.name?.charAt(0) || "?"
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-green-50">
+                          <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-green-50 min-w-[3.5rem]">Hole</th>
+                          {holeRange.map((h) => (
+                            <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
+                          ))}
+                          <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="bg-green-50 border-b-2 border-green-200">
+                          <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
+                          {holeRange.map((h) => (
+                            <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
+                          ))}
+                          <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
+                            {holeRange.reduce((s, h) => s + h.par, 0)}
+                          </td>
+                        </tr>
+                        {foursome.players.map((player, i) => {
+                          let total = 0
+                          let count = 0
+                          const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
+                          return (
+                            <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
+                              <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-green-800" : "text-gray-400"}`}>
+                                {player.name.split(" ")[0]}
+                              </td>
+                              {holeRange.map((h) => {
+                                const score = r2AllScores.find((s) => s.player_id === player.id && s.hole_number === h.hole_number)
+                                const strokes = score?.strokes || 0
+                                if (strokes > 0) { total += strokes; count++ }
                                 return (
-                                  <td key={h.hole_number} className={`px-1 py-2 text-xs text-center font-bold ${isOurTeam ? "text-green-700" : "text-gray-400"}`}>
-                                    {isOurTeam ? result.skinsWon : teamInitial}
+                                  <td key={h.hole_number} className="px-1 py-2 text-center">
+                                    {strokes > 0 ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
                                   </td>
                                 )
-                              }
+                              })}
+                              <td className="px-2 py-2 text-xs text-green-800 font-bold text-center">
+                                {count > 0 ? total : "–"}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        <tr className="bg-green-100">
+                          <td className="px-2 py-2 text-xs text-green-800 font-bold sticky left-0 bg-green-100">Skins</td>
+                          {holeRange.map((h) => {
+                            const result = foursome.holeResults[h.hole_number]
+                            if (!result) {
+                              return <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-gray-300">–</td>
+                            }
+                            if (result.winner) {
+                              const isOurTeam = result.winner.teamId === selectedTeam!.id
+                              const winnerTeam = teams.find((t) => t.id === result.winner!.teamId)
+                              const teamInitial = winnerTeam?.name?.charAt(0) || "?"
                               return (
-                                <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-green-500 font-medium">
-                                  —
+                                <td key={h.hole_number} className={`px-1 py-2 text-xs text-center font-bold ${isOurTeam ? "text-green-700" : "text-gray-400"}`}>
+                                  {isOurTeam ? result.skinsWon : teamInitial}
                                 </td>
                               )
-                            })}
-                            <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
-                              {foursome.teamSkinsInGroup % 1 === 0 ? foursome.teamSkinsInGroup : foursome.teamSkinsInGroup.toFixed(1)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                            }
+                            return (
+                              <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-green-500 font-medium">
+                                —
+                              </td>
+                            )
+                          })}
+                          <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
+                            {foursome.teamSkinsInGroup % 1 === 0 ? foursome.teamSkinsInGroup : foursome.teamSkinsInGroup.toFixed(1)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 )
               }
 
               return (
-                <div>
-                  <div className="flex items-center justify-center gap-3 pt-3 pb-1">
-                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-green-700" : "bg-green-300"}`} />
-                    <p className="text-xs font-semibold text-green-600">
-                      {nine === "front" ? "Front 9" : "Back 9"}
-                    </p>
-                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-green-700" : "bg-green-300"}`} />
-                  </div>
-                  <div
-                    className="overflow-hidden"
-                    onTouchStart={handleTouchStart}
-                    onTouchEnd={(e) => handleTouchEnd(2, e)}
-                  >
-                    <div
-                      className="flex transition-transform duration-300 ease-out"
-                      style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
-                    >
-                      <div className="w-full flex-shrink-0 px-3 py-2">
-                        {foursomes.map((f) => renderR2Table(front9, f))}
+                <div className="flex flex-col gap-1 py-2 px-3">
+                  {foursomes.map((f) => {
+                    const gKey = f.groupNumber
+                    const nine = activeNine[20 + gKey] || "front"
+                    const teamPlayerNames = f.players
+                      .filter((p) => selectedTeam!.players.some((tp) => tp.id === p.id))
+                      .map((p) => p.name.split(" ")[0])
+                      .join(", ")
+
+                    return (
+                      <div key={gKey} className="rounded-lg border border-green-200 overflow-hidden bg-white">
+                        <button
+                          onClick={() => toggleGroup(gKey)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 bg-green-50 active:bg-green-100 transition-colors"
+                        >
+                          <div className="text-left">
+                            <p className="font-semibold text-sm text-green-800">Group {gKey}</p>
+                            <p className="text-xs text-green-600">{teamPlayerNames}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-green-800">
+                              {f.teamSkinsInGroup % 1 === 0 ? f.teamSkinsInGroup : f.teamSkinsInGroup.toFixed(1)} skins
+                            </p>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 text-green-600 transition-transform ${expandedGroups[gKey] ? "rotate-180" : ""}`}>
+                              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        </button>
+
+                        {expandedGroups[gKey] && (
+                          <div>
+                            <div className="flex items-center justify-center gap-3 pt-2 pb-1">
+                              <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-green-700" : "bg-green-300"}`} />
+                              <p className="text-xs font-semibold text-green-600">
+                                {nine === "front" ? "Front 9" : "Back 9"}
+                              </p>
+                              <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-green-700" : "bg-green-300"}`} />
+                            </div>
+                            <div
+                              className="overflow-hidden"
+                              onTouchStart={handleTouchStart}
+                              onTouchEnd={(e) => handleTouchEnd(20 + gKey, e)}
+                            >
+                              <div
+                                className="flex transition-transform duration-300 ease-out"
+                                style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
+                              >
+                                <div className="w-full flex-shrink-0 px-3 py-2">
+                                  {renderR2Table(front9, f)}
+                                </div>
+                                <div className="w-full flex-shrink-0 px-3 py-2">
+                                  {renderR2Table(back9, f)}
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-center text-[10px] text-green-400 pb-2">
+                              Swipe {nine === "front" ? "left for back 9" : "right for front 9"}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div className="w-full flex-shrink-0 px-3 py-2">
-                        {foursomes.map((f) => renderR2Table(back9, f))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-center text-[10px] text-green-400 pb-2">
-                    Swipe {nine === "front" ? "left for back 9" : "right for front 9"}
-                  </p>
+                    )
+                  })}
                 </div>
               )
             })()}
