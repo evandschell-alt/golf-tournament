@@ -56,6 +56,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   // Which nine is visible per round (front or back)
   const [activeNine, setActiveNine] = useState<{ [r: number]: "front" | "back" }>({
     1: "front",
+    2: "front",
     3: "front",
   })
   const touchStartX = useRef(0)
@@ -236,6 +237,68 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     })
 
     return { teamSkins, completed, holeResults: allHoleResults.sort((a, b) => a.holeNumber - b.holeNumber) }
+  }
+
+  // ===== R2 FOURSOME DATA (for card layout) =====
+  function getR2Foursomes(): {
+    groupNumber: number
+    players: { id: string; name: string; teamId: string }[]
+    completed: number
+    teamSkinsInGroup: number
+    holeResults: { [holeNumber: number]: { winner: { playerId: string; teamId: string } | null; skinsWon: number; carryOver: number } }
+  }[] {
+    if (!selectedTeam) return []
+
+    const teamPlayerIds = selectedTeam.players.map((p) => p.id)
+    const foursomeGroups: { [g: number]: string[] } = {}
+    r2Pairings.forEach((p) => {
+      if (!foursomeGroups[p.group_number]) foursomeGroups[p.group_number] = []
+      foursomeGroups[p.group_number].push(p.player_id)
+    })
+
+    const r2Scores = allScores.filter((s) => s.round_number === 2)
+    const results: ReturnType<typeof getR2Foursomes> = []
+
+    Object.entries(foursomeGroups).forEach(([gNum, playerIds]) => {
+      const hasTeamPlayer = playerIds.some((pid) => teamPlayerIds.includes(pid))
+      if (!hasTeamPlayer) return
+
+      const players = playerIds.map((pid) => {
+        const player = allPlayers.find((p) => p.id === pid)
+        return { id: pid, name: player?.name || "Unknown", teamId: player?.team_id || "" }
+      })
+
+      const foursomeHoles: { holeNumber: number; players: { playerId: string; teamId: string; strokes: number }[] }[] = []
+      holes.forEach((hole) => {
+        const holePlayers = playerIds.map((pid) => {
+          const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
+          const player = allPlayers.find((p) => p.id === pid)
+          return { playerId: pid, teamId: player?.team_id || "", strokes: score?.strokes || 0 }
+        })
+        if (holePlayers.every((p) => p.strokes > 0)) {
+          foursomeHoles.push({ holeNumber: hole.hole_number, players: holePlayers })
+        }
+      })
+
+      const skinsResult = foursomeHoles.length > 0
+        ? calculateSkins(foursomeHoles)
+        : { holeResults: [], teamSkins: {} as { [k: string]: number }, playerSkins: {}, currentCarryOver: 0 }
+
+      const holeResultsMap: (typeof results)[0]["holeResults"] = {}
+      skinsResult.holeResults.forEach((hr) => {
+        holeResultsMap[hr.holeNumber] = { winner: hr.winner, skinsWon: hr.skinsWon, carryOver: hr.carryOver }
+      })
+
+      results.push({
+        groupNumber: parseInt(gNum),
+        players,
+        completed: foursomeHoles.length,
+        teamSkinsInGroup: skinsResult.teamSkins[selectedTeam!.id] || 0,
+        holeResults: holeResultsMap,
+      })
+    })
+
+    return results.sort((a, b) => a.groupNumber - b.groupNumber)
   }
 
   // ===== R3 CALCULATIONS =====
@@ -562,41 +625,131 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               </div>
             </button>
 
-            {expandedRounds[2] && (
-              <div className="px-4 py-3">
-                {r2.holeResults.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-2">No skins results yet</p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {r2.holeResults.map((hr) => (
-                      <div key={hr.holeNumber} className={`flex items-center justify-between rounded-lg px-3 py-2 ${
-                        hr.winner ? "bg-green-50" : hr.carryOver > 0 ? "bg-yellow-50" : "bg-gray-50"
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-green-800 w-6">#{hr.holeNumber}</span>
-                          {hr.winner ? (
-                            <span className="text-xs font-semibold text-green-700">
-                              {hr.winner} wins {hr.skinsWon} skin{hr.skinsWon !== 1 ? "s" : ""}
-                            </span>
-                          ) : hr.carryOver > 0 ? (
-                            <span className="text-xs font-medium text-yellow-700">
-                              Tie — {hr.carryOver} carry over
-                            </span>
-                          ) : (
-                            <span className="text-xs font-medium text-blue-700">
-                              Split — {hr.skinsWon} skin{hr.skinsWon !== 1 ? "s" : ""} divided
-                            </span>
-                          )}
-                        </div>
-                        {hr.winner && (
-                          <span className="text-xs font-bold text-green-600">+{hr.skinsWon}</span>
-                        )}
-                      </div>
-                    ))}
+            {expandedRounds[2] && (() => {
+              const foursomes = getR2Foursomes()
+              const nine = activeNine[2] || "front"
+              const r2AllScores = allScores.filter((s) => s.round_number === 2)
+
+              if (foursomes.length === 0) {
+                return <div className="px-4 py-3"><p className="text-sm text-gray-400 text-center py-2">No skins results yet</p></div>
+              }
+
+              function renderR2Table(holeRange: Hole[], foursome: (typeof foursomes)[0]) {
+                return (
+                  <div key={foursome.groupNumber} className="mb-3">
+                    <p className="text-xs font-semibold text-yellow-700 mb-1 px-1">Group {foursome.groupNumber}</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-yellow-50">
+                            <th className="text-left px-2 py-1.5 text-xs text-yellow-700 font-semibold sticky left-0 bg-yellow-50 min-w-[3.5rem]">Hole</th>
+                            {holeRange.map((h) => (
+                              <th key={h.hole_number} className="px-1 py-1.5 text-xs text-yellow-700 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
+                            ))}
+                            <th className="px-2 py-1.5 text-xs text-yellow-800 font-bold text-center">Tot</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-yellow-50 border-b-2 border-yellow-200">
+                            <td className="px-2 py-1.5 text-xs text-yellow-600 font-medium sticky left-0 bg-yellow-50">Par</td>
+                            {holeRange.map((h) => (
+                              <td key={h.hole_number} className="px-1 py-1.5 text-xs text-yellow-600 text-center">{h.par}</td>
+                            ))}
+                            <td className="px-2 py-1.5 text-xs text-yellow-800 font-bold text-center">
+                              {holeRange.reduce((s, h) => s + h.par, 0)}
+                            </td>
+                          </tr>
+                          {foursome.players.map((player, i) => {
+                            let total = 0
+                            let count = 0
+                            const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
+                            return (
+                              <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-yellow-50" : "border-b-2 border-yellow-200"}>
+                                <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-yellow-800" : "text-gray-400"}`}>
+                                  {player.name.split(" ")[0]}
+                                </td>
+                                {holeRange.map((h) => {
+                                  const score = r2AllScores.find((s) => s.player_id === player.id && s.hole_number === h.hole_number)
+                                  const strokes = score?.strokes || 0
+                                  if (strokes > 0) { total += strokes; count++ }
+                                  return (
+                                    <td key={h.hole_number} className="px-1 py-2 text-center">
+                                      {strokes > 0 ? renderScoreCell(strokes, h.par) : <span className="text-gray-300 text-xs">–</span>}
+                                    </td>
+                                  )
+                                })}
+                                <td className="px-2 py-2 text-xs text-yellow-800 font-bold text-center">
+                                  {count > 0 ? total : "–"}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          <tr className="bg-yellow-100">
+                            <td className="px-2 py-2 text-xs text-yellow-800 font-bold sticky left-0 bg-yellow-100">Skins</td>
+                            {holeRange.map((h) => {
+                              const result = foursome.holeResults[h.hole_number]
+                              if (!result) {
+                                return <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-gray-300">–</td>
+                              }
+                              if (result.winner) {
+                                const isOurTeam = result.winner.teamId === selectedTeam!.id
+                                const winnerTeam = teams.find((t) => t.id === result.winner!.teamId)
+                                const teamInitial = winnerTeam?.name?.charAt(0) || "?"
+                                return (
+                                  <td key={h.hole_number} className={`px-1 py-2 text-xs text-center font-bold ${isOurTeam ? "text-green-700" : "text-gray-400"}`}>
+                                    {isOurTeam ? result.skinsWon : teamInitial}
+                                  </td>
+                                )
+                              }
+                              return (
+                                <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-yellow-600 font-medium">
+                                  —
+                                </td>
+                              )
+                            })}
+                            <td className="px-2 py-2 text-xs text-yellow-900 font-bold text-center">
+                              {foursome.teamSkinsInGroup % 1 === 0 ? foursome.teamSkinsInGroup : foursome.teamSkinsInGroup.toFixed(1)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+                )
+              }
+
+              return (
+                <div>
+                  <div className="flex items-center justify-center gap-3 pt-3 pb-1">
+                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-yellow-600" : "bg-yellow-200"}`} />
+                    <p className="text-xs font-semibold text-yellow-700">
+                      {nine === "front" ? "Front 9" : "Back 9"}
+                    </p>
+                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-yellow-600" : "bg-yellow-200"}`} />
+                  </div>
+                  <div
+                    className="overflow-hidden"
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={(e) => handleTouchEnd(2, e)}
+                  >
+                    <div
+                      className="flex transition-transform duration-300 ease-out"
+                      style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
+                    >
+                      <div className="w-full flex-shrink-0 px-3 py-2">
+                        {foursomes.map((f) => renderR2Table(front9, f))}
+                      </div>
+                      <div className="w-full flex-shrink-0 px-3 py-2">
+                        {foursomes.map((f) => renderR2Table(back9, f))}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-center text-[10px] text-yellow-400 pb-2">
+                    Swipe {nine === "front" ? "left for back 9" : "right for front 9"}
+                  </p>
+                </div>
+              )
+            })()}
           </div>
 
           {/* ===== ROUND 3: SCRAMBLE ===== */}
