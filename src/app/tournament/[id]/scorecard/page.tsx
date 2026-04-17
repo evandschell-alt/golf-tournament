@@ -795,7 +795,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 R1: {r1.points} &middot; R2: {r2.teamSkins % 1 === 0 ? r2.teamSkins : r2.teamSkins.toFixed(1)} &middot; R3: {r3.points}
               </p>
             </div>
-            <p className="text-3xl font-bold">{getTotalPoints()}</p>
+            <p className="text-3xl font-bold">{getTotalPoints()} <span className="text-lg">pts</span></p>
           </div>
 
         </div>
