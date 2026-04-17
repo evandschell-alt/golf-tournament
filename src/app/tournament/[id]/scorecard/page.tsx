@@ -573,11 +573,11 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           <div className="rounded-xl bg-white border border-green-200 overflow-hidden">
             <button
               onClick={() => toggleRound(1)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-green-700 text-white active:bg-green-800 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 bg-green-500 text-white active:bg-green-600 transition-colors"
             >
               <div className="text-left">
                 <p className="font-bold text-sm">R1 &middot; Best Ball</p>
-                <p className="text-xs text-green-200">{r1.completed}/18 holes</p>
+                <p className="text-xs text-green-100">{r1.completed}/18 holes</p>
               </div>
               <div className="flex items-center gap-2">
                 <p className="text-xl font-bold">{r1.points} pts</p>
@@ -606,14 +606,14 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* ===== ROUND 2: SKINS ===== */}
-          <div className="rounded-xl bg-white border border-yellow-300 overflow-hidden">
+          <div className="rounded-xl bg-white border border-green-300 overflow-hidden">
             <button
               onClick={() => toggleRound(2)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-yellow-500 text-white active:bg-yellow-600 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 bg-green-700 text-white active:bg-green-800 transition-colors"
             >
               <div className="text-left">
                 <p className="font-bold text-sm">R2 &middot; Skins</p>
-                <p className="text-xs text-yellow-100">{r2.completed}/18 holes</p>
+                <p className="text-xs text-green-200">{r2.completed}/18 holes</p>
               </div>
               <div className="flex items-center gap-2">
                 <p className="text-xl font-bold">
@@ -637,25 +637,25 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               function renderR2Table(holeRange: Hole[], foursome: (typeof foursomes)[0]) {
                 return (
                   <div key={foursome.groupNumber} className="mb-3">
-                    <p className="text-xs font-semibold text-yellow-700 mb-1 px-1">Group {foursome.groupNumber}</p>
+                    <p className="text-xs font-semibold text-green-700 mb-1 px-1">Group {foursome.groupNumber}</p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-yellow-50">
-                            <th className="text-left px-2 py-1.5 text-xs text-yellow-700 font-semibold sticky left-0 bg-yellow-50 min-w-[3.5rem]">Hole</th>
+                          <tr className="bg-green-50">
+                            <th className="text-left px-2 py-1.5 text-xs text-green-600 font-semibold sticky left-0 bg-green-50 min-w-[3.5rem]">Hole</th>
                             {holeRange.map((h) => (
-                              <th key={h.hole_number} className="px-1 py-1.5 text-xs text-yellow-700 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
+                              <th key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 font-semibold text-center min-w-[1.8rem]">{h.hole_number}</th>
                             ))}
-                            <th className="px-2 py-1.5 text-xs text-yellow-800 font-bold text-center">Tot</th>
+                            <th className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">Tot</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="bg-yellow-50 border-b-2 border-yellow-200">
-                            <td className="px-2 py-1.5 text-xs text-yellow-600 font-medium sticky left-0 bg-yellow-50">Par</td>
+                          <tr className="bg-green-50 border-b-2 border-green-200">
+                            <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
                             {holeRange.map((h) => (
-                              <td key={h.hole_number} className="px-1 py-1.5 text-xs text-yellow-600 text-center">{h.par}</td>
+                              <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
                             ))}
-                            <td className="px-2 py-1.5 text-xs text-yellow-800 font-bold text-center">
+                            <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
                               {holeRange.reduce((s, h) => s + h.par, 0)}
                             </td>
                           </tr>
@@ -664,8 +664,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                             let count = 0
                             const isTeamPlayer = selectedTeam!.players.some((p) => p.id === player.id)
                             return (
-                              <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-yellow-50" : "border-b-2 border-yellow-200"}>
-                                <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-yellow-800" : "text-gray-400"}`}>
+                              <tr key={player.id} className={i < foursome.players.length - 1 ? "border-b border-green-50" : "border-b-2 border-green-200"}>
+                                <td className={`px-2 py-2 text-xs font-semibold sticky left-0 bg-white truncate max-w-[3.5rem] ${isTeamPlayer ? "text-green-800" : "text-gray-400"}`}>
                                   {player.name.split(" ")[0]}
                                 </td>
                                 {holeRange.map((h) => {
@@ -678,14 +678,14 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                                     </td>
                                   )
                                 })}
-                                <td className="px-2 py-2 text-xs text-yellow-800 font-bold text-center">
+                                <td className="px-2 py-2 text-xs text-green-800 font-bold text-center">
                                   {count > 0 ? total : "–"}
                                 </td>
                               </tr>
                             )
                           })}
-                          <tr className="bg-yellow-100">
-                            <td className="px-2 py-2 text-xs text-yellow-800 font-bold sticky left-0 bg-yellow-100">Skins</td>
+                          <tr className="bg-green-100">
+                            <td className="px-2 py-2 text-xs text-green-800 font-bold sticky left-0 bg-green-100">Skins</td>
                             {holeRange.map((h) => {
                               const result = foursome.holeResults[h.hole_number]
                               if (!result) {
@@ -702,12 +702,12 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                                 )
                               }
                               return (
-                                <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-yellow-600 font-medium">
+                                <td key={h.hole_number} className="px-1 py-2 text-xs text-center text-green-500 font-medium">
                                   —
                                 </td>
                               )
                             })}
-                            <td className="px-2 py-2 text-xs text-yellow-900 font-bold text-center">
+                            <td className="px-2 py-2 text-xs text-green-900 font-bold text-center">
                               {foursome.teamSkinsInGroup % 1 === 0 ? foursome.teamSkinsInGroup : foursome.teamSkinsInGroup.toFixed(1)}
                             </td>
                           </tr>
@@ -721,11 +721,11 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               return (
                 <div>
                   <div className="flex items-center justify-center gap-3 pt-3 pb-1">
-                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-yellow-600" : "bg-yellow-200"}`} />
-                    <p className="text-xs font-semibold text-yellow-700">
+                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "front" ? "bg-green-700" : "bg-green-300"}`} />
+                    <p className="text-xs font-semibold text-green-600">
                       {nine === "front" ? "Front 9" : "Back 9"}
                     </p>
-                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-yellow-600" : "bg-yellow-200"}`} />
+                    <div className={`w-2 h-2 rounded-full transition-colors ${nine === "back" ? "bg-green-700" : "bg-green-300"}`} />
                   </div>
                   <div
                     className="overflow-hidden"
@@ -744,7 +744,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                       </div>
                     </div>
                   </div>
-                  <p className="text-center text-[10px] text-yellow-400 pb-2">
+                  <p className="text-center text-[10px] text-green-400 pb-2">
                     Swipe {nine === "front" ? "left for back 9" : "right for front 9"}
                   </p>
                 </div>
@@ -753,14 +753,14 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* ===== ROUND 3: SCRAMBLE ===== */}
-          <div className="rounded-xl bg-white border border-green-200 overflow-hidden">
+          <div className="rounded-xl bg-white border border-green-400 overflow-hidden">
             <button
               onClick={() => toggleRound(3)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-green-700 text-white active:bg-green-800 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 bg-green-800 text-white active:bg-green-900 transition-colors"
             >
               <div className="text-left">
                 <p className="font-bold text-sm">R3 &middot; Scramble</p>
-                <p className="text-xs text-green-200">{r3.completed}/18 holes</p>
+                <p className="text-xs text-green-300">{r3.completed}/18 holes</p>
               </div>
               <div className="flex items-center gap-2">
                 <p className="text-xl font-bold">{r3.points} pts</p>
