@@ -13,7 +13,11 @@ type Foursome = {
 }
 
 type HoleScores = {
-  [playerId: string]: number // just strokes for skins, no moneyball
+  [playerId: string]: {
+    strokes: number
+    moneyball_used: boolean
+    moneyball_lost: boolean
+  }
 }
 
 type Props = {
@@ -28,8 +32,10 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
   const [currentHole, setCurrentHole] = useState(1)
   const [scores, setScores] = useState<{ [holeNumber: number]: HoleScores }>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [, setSaving] = useState(false)
   const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
+  // Moneyball tracking: per-player, which hole they used their moneyball on (if any)
+  const [moneyballByPlayer, setMoneyballByPlayer] = useState<{ [playerId: string]: number }>({})
 
   useEffect(() => {
     const fetchData = async () => {
@@ -111,39 +117,65 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
 
       if (existingScores && existingScores.length > 0) {
         const loaded: { [holeNumber: number]: HoleScores } = {}
+        const mbByPlayer: { [playerId: string]: number } = {}
         existingScores.forEach((s) => {
           if (!loaded[s.hole_number]) loaded[s.hole_number] = {}
           if (s.player_id) {
-            loaded[s.hole_number][s.player_id] = s.strokes
+            loaded[s.hole_number][s.player_id] = {
+              strokes: s.strokes,
+              moneyball_used: s.moneyball_used,
+              moneyball_lost: s.moneyball_lost,
+            }
+            if (s.moneyball_used) mbByPlayer[s.player_id] = s.hole_number
           }
         })
         setScores(loaded)
+        setMoneyballByPlayer(mbByPlayer)
       } else {
         setScores({})
+        setMoneyballByPlayer({})
       }
     }
 
     loadScores()
   }, [selectedFoursome, tournamentId])
 
+  // Restore current hole for this foursome from localStorage
+  useEffect(() => {
+    if (!selectedFoursome) return
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`r2-hole-${tournamentId}-g${selectedFoursome.groupNumber}`)
+      if (saved) setCurrentHole(parseInt(saved))
+      else setCurrentHole(1)
+    }
+  }, [selectedFoursome, tournamentId])
+
+  // Persist current hole per foursome
+  useEffect(() => {
+    if (!selectedFoursome) return
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`r2-hole-${tournamentId}-g${selectedFoursome.groupNumber}`, String(currentHole))
+    }
+  }, [currentHole, selectedFoursome, tournamentId])
+
   // Get or initialize scores for a hole (default to 0 = blank)
   function getHoleScores(holeNumber: number): HoleScores {
     if (scores[holeNumber]) return scores[holeNumber]
     const init: HoleScores = {}
     selectedFoursome?.players.forEach((p) => {
-      init[p.id] = 0
+      init[p.id] = { strokes: 0, moneyball_used: false, moneyball_lost: false }
     })
     return init
   }
 
   function setStrokes(holeNumber: number, playerId: string, strokes: number) {
     const holeScores = { ...getHoleScores(holeNumber) }
-    holeScores[playerId] = strokes
+    holeScores[playerId] = { ...holeScores[playerId], strokes }
     setScores({ ...scores, [holeNumber]: holeScores })
   }
 
   function adjustStrokes(holeNumber: number, playerId: string, delta: number) {
-    const current = getHoleScores(holeNumber)[playerId] || 0
+    const current = getHoleScores(holeNumber)[playerId]?.strokes || 0
     if (current === 0) {
       const hole = holes.find((h) => h.hole_number === holeNumber)
       const par = hole?.par || 4
@@ -152,6 +184,37 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
       const newVal = Math.max(1, current + delta)
       setStrokes(holeNumber, playerId, newVal)
     }
+  }
+
+  // Toggle moneyball — each player has their own moneyball, tracked per-round
+  function toggleMoneyball(holeNumber: number, playerId: string) {
+    const holeScores = { ...getHoleScores(holeNumber) }
+    const playerScore = { ...holeScores[playerId] }
+
+    if (playerScore.moneyball_used) {
+      playerScore.moneyball_used = false
+      playerScore.moneyball_lost = false
+      holeScores[playerId] = playerScore
+      setScores({ ...scores, [holeNumber]: holeScores })
+      setMoneyballByPlayer((prev) => {
+        const next = { ...prev }
+        delete next[playerId]
+        return next
+      })
+    } else {
+      playerScore.moneyball_used = true
+      holeScores[playerId] = playerScore
+      setScores({ ...scores, [holeNumber]: holeScores })
+      setMoneyballByPlayer((prev) => ({ ...prev, [playerId]: holeNumber }))
+    }
+  }
+
+  function toggleMoneyballLost(holeNumber: number, playerId: string) {
+    const holeScores = { ...getHoleScores(holeNumber) }
+    const playerScore = { ...holeScores[playerId] }
+    playerScore.moneyball_lost = !playerScore.moneyball_lost
+    holeScores[playerId] = playerScore
+    setScores({ ...scores, [holeNumber]: holeScores })
   }
 
   // Save scores for a hole
@@ -166,12 +229,17 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
     // Fill in par for untouched players
     const filledScores: HoleScores = {}
     selectedFoursome.players.forEach((p) => {
-      filledScores[p.id] = holeScores[p.id] === 0 ? par : holeScores[p.id]
+      const ps = holeScores[p.id]
+      filledScores[p.id] = {
+        ...ps,
+        strokes: ps.strokes === 0 ? par : ps.strokes,
+      }
     })
 
     setScores((prev) => ({ ...prev, [holeNumber]: filledScores }))
 
     for (const player of selectedFoursome.players) {
+      const ps = filledScores[player.id]
       const { error } = await supabase
         .from("scores")
         .upsert(
@@ -181,9 +249,9 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
             hole_number: holeNumber,
             player_id: player.id,
             team_id: player.team_id,
-            strokes: filledScores[player.id],
-            moneyball_used: false,
-            moneyball_lost: false,
+            strokes: ps.strokes,
+            moneyball_used: ps.moneyball_used,
+            moneyball_lost: ps.moneyball_lost,
           },
           { onConflict: "tournament_id,round_number,hole_number,player_id" }
         )
@@ -193,28 +261,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
     setSaving(false)
   }
 
-  // Unsave a hole
-  async function unsaveHoleScores(holeNumber: number) {
-    if (!selectedFoursome) return
-
-    setScores((prev) => {
-      const next = { ...prev }
-      delete next[holeNumber]
-      return next
-    })
-
-    for (const player of selectedFoursome.players) {
-      await supabase
-        .from("scores")
-        .delete()
-        .eq("tournament_id", tournamentId)
-        .eq("round_number", 2)
-        .eq("hole_number", holeNumber)
-        .eq("player_id", player.id)
-    }
-  }
-
-  // Calculate skins results for completed holes
+  // Calculate skins results for completed holes (applies moneyball adjustment)
   function getSkinsResults() {
     if (!selectedFoursome) return null
 
@@ -223,16 +270,21 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
     holes.forEach((hole) => {
       const hs = scores[hole.hole_number]
       if (!hs) return
-      const allEntered = selectedFoursome.players.every((p) => hs[p.id] > 0)
+      const allEntered = selectedFoursome.players.every((p) => hs[p.id]?.strokes > 0)
       if (!allEntered) return
 
       completedHoles.push({
         holeNumber: hole.hole_number,
-        players: selectedFoursome.players.map((p) => ({
-          playerId: p.id,
-          teamId: p.team_id,
-          strokes: hs[p.id],
-        })),
+        players: selectedFoursome.players.map((p) => {
+          const ps = hs[p.id]
+          // Moneyball reduces effective strokes by 1 unless the ball was lost
+          const adjusted = ps.strokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)
+          return {
+            playerId: p.id,
+            teamId: p.team_id,
+            strokes: adjusted,
+          }
+        }),
       })
     })
 
@@ -259,7 +311,6 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
   if (!hole) return null
 
   const holeScores = getHoleScores(currentHole)
-  const allEntered = selectedFoursome.players.every((p) => holeScores[p.id] > 0)
   const skinsResults = getSkinsResults()
 
   // Get team names in this foursome
@@ -273,10 +324,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
           {foursomes.map((f) => (
             <button
               key={f.groupNumber}
-              onClick={() => {
-                setSelectedFoursome(f)
-                setCurrentHole(1)
-              }}
+              onClick={() => setSelectedFoursome(f)}
               className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
                 selectedFoursome.groupNumber === f.groupNumber
                   ? "bg-green-700 text-white"
@@ -333,7 +381,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                 <div className="absolute top-full left-0 mt-1 bg-white rounded-xl border border-green-200 shadow-lg z-20 p-2 grid grid-cols-6 gap-1 w-[240px]">
                   {holes.map((h) => {
                     const hs = scores[h.hole_number]
-                    const completed = hs && selectedFoursome.players.every((p) => hs[p.id] > 0)
+                    const completed = hs && selectedFoursome.players.every((p) => hs[p.id]?.strokes > 0)
                     return (
                       <button
                         key={h.hole_number}
@@ -366,7 +414,6 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
           {skinsResults && (() => {
             const holeResult = skinsResults.holeResults.find((r) => r.holeNumber === currentHole)
             if (!holeResult) {
-              // Show how many skins are at stake
               const prevHoles = skinsResults.holeResults.filter((r) => r.holeNumber < currentHole)
               const carry = prevHoles.length > 0 ? prevHoles[prevHoles.length - 1].carryOver : 0
               if (carry > 0) {
@@ -408,7 +455,8 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
       <div className="flex-1 px-4 pb-4">
         <div className="max-w-md mx-auto flex flex-col gap-3">
           {selectedFoursome.players.map((player) => {
-            const strokes = holeScores[player.id] || 0
+            const ps = holeScores[player.id] || { strokes: 0, moneyball_used: false, moneyball_lost: false }
+            const strokes = ps.strokes
 
             // Check if this player won the skin on this hole
             let wonSkin = false
@@ -416,6 +464,11 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
               const holeResult = skinsResults.holeResults.find((r) => r.holeNumber === currentHole)
               if (holeResult?.winner?.playerId === player.id) wonSkin = true
             }
+
+            // Per-player moneyball state
+            const playerMbHole = moneyballByPlayer[player.id] ?? null
+            const mbUsedOnThisHole = playerMbHole === currentHole
+            const mbUsedElsewhere = playerMbHole !== null && playerMbHole !== currentHole
 
             return (
               <div
@@ -430,7 +483,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                 </div>
 
                 {/* Stroke counter */}
-                <div className="flex items-center justify-center gap-4 mb-1">
+                <div className="flex items-center justify-center gap-4 mb-3">
                   <button
                     onClick={() => adjustStrokes(currentHole, player.id, -1)}
                     className="h-12 w-12 rounded-full bg-green-100 text-green-800 text-xl font-bold flex items-center justify-center hover:bg-green-200 transition-colors"
@@ -448,10 +501,47 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                   </button>
                 </div>
 
+                {/* Moneyball — always visible; strikethrough if already used on a different hole */}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => !mbUsedElsewhere && toggleMoneyball(currentHole, player.id)}
+                    disabled={mbUsedElsewhere}
+                    className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
+                      mbUsedOnThisHole
+                        ? "bg-yellow-400 text-yellow-900"
+                        : mbUsedElsewhere
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
+                        : "bg-gray-100 text-gray-500 hover:bg-yellow-100"
+                    }`}
+                  >
+                    {mbUsedOnThisHole
+                      ? "Moneyball Active"
+                      : mbUsedElsewhere
+                      ? `Used on Hole ${playerMbHole}`
+                      : "Use Moneyball"}
+                  </button>
+
+                  {mbUsedOnThisHole && (
+                    <button
+                      onClick={() => toggleMoneyballLost(currentHole, player.id)}
+                      className={`w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
+                        ps.moneyball_lost
+                          ? "bg-red-100 text-red-700"
+                          : "bg-gray-100 text-gray-500 hover:bg-red-50"
+                      }`}
+                    >
+                      {ps.moneyball_lost ? "Moneyball Lost (no bonus)" : "Mark Ball Lost"}
+                    </button>
+                  )}
+                </div>
+
                 {/* Score label */}
                 {strokes > 0 && (
-                  <p className="text-xs text-center text-green-600">
+                  <p className="text-xs text-center text-green-600 mt-2">
                     {scoreLabel(strokes, hole.par)}
+                    {ps.moneyball_used && !ps.moneyball_lost && (
+                      <span className="text-yellow-600"> (adjusted: {strokes - 1})</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -462,10 +552,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
           <div className="flex gap-3 mt-2 pb-4">
             <button
               onClick={() => {
-                if (currentHole > 1) {
-                  unsaveHoleScores(currentHole)
-                  setCurrentHole(currentHole - 1)
-                }
+                if (currentHole > 1) setCurrentHole(currentHole - 1)
               }}
               disabled={currentHole === 1}
               className="flex-1 rounded-xl border-2 border-green-700 py-3 text-sm font-semibold text-green-700 disabled:opacity-30 transition-colors"
@@ -473,16 +560,17 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
               &larr; Prev
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (currentHole < 18) {
                   saveHoleScores(currentHole)
                   setCurrentHole(currentHole + 1)
+                } else {
+                  await saveHoleScores(18)
                 }
               }}
-              disabled={currentHole === 18}
-              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-30 transition-colors"
+              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
             >
-              Next &rarr;
+              {currentHole < 18 ? "Next \u2192" : "Finish \u2713"}
             </button>
           </div>
         </div>
