@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, use } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { round1HolePoints, scoreLabel, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
@@ -29,6 +29,7 @@ const ROUND_LABELS: { [key: number]: string } = {
 export default function ScoreEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const teamIdFromUrl = searchParams.get("team")
   const roundFromUrl = searchParams.get("round")
 
@@ -36,7 +37,17 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   const [teams, setTeams] = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [holes, setHoles] = useState<Hole[]>([])
-  const [currentHole, setCurrentHole] = useState(1)
+  // Restore the last hole being viewed for the current round
+  const [currentHole, setCurrentHole] = useState(() => {
+    if (typeof window !== "undefined") {
+      const rnd = roundFromUrl
+        ? parseInt(roundFromUrl)
+        : parseInt(localStorage.getItem(`round-${tournamentId}`) || "1")
+      const saved = localStorage.getItem(`hole-${tournamentId}-r${rnd}`)
+      if (saved) return parseInt(saved)
+    }
+    return 1
+  })
   const [scores, setScores] = useState<{ [holeNumber: number]: HoleScores }>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -58,6 +69,13 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       localStorage.setItem(`round-${tournamentId}`, String(r))
     }
   }
+
+  // Persist currentHole per round whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`hole-${tournamentId}-r${roundNumber}`, String(currentHole))
+    }
+  }, [currentHole, roundNumber, tournamentId])
   const [allScores, setAllScores] = useState<{ team_id: string; round_number: number; hole_number: number; strokes: number; moneyball_used: boolean; moneyball_lost: boolean; player_id: string | null }[]>([])
   const [r2Pairings, setR2Pairings] = useState<{ group_number: number; player_id: string }[]>([])
   const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string }[]>([])
@@ -556,7 +574,13 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
                       onClick={() => {
                         setRoundNumber(r)
                         setRoundDropdownOpen(false)
-                        setCurrentHole(1)
+                        // Restore the last hole viewed for this round
+                        if (typeof window !== "undefined") {
+                          const saved = localStorage.getItem(`hole-${tournamentId}-r${r}`)
+                          setCurrentHole(saved ? parseInt(saved) : 1)
+                        } else {
+                          setCurrentHole(1)
+                        }
                       }}
                       className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                         r === roundNumber
@@ -763,16 +787,19 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               &larr; Prev
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (currentHole < 18) {
                   saveHoleScores(currentHole)
                   setCurrentHole(currentHole + 1)
+                } else {
+                  // Hole 18 — save and navigate to scorecard
+                  await saveHoleScores(18)
+                  router.push(`/tournament/${tournamentId}/scorecard?team=${selectedTeam.id}`)
                 }
               }}
-              disabled={currentHole === 18}
-              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-30 transition-colors"
+              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
             >
-              Next &rarr;
+              {currentHole < 18 ? "Next \u2192" : "Finish \u2713"}
             </button>
           </div>
         </div>
