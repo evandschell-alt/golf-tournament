@@ -84,7 +84,8 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
           .sort((a, b) => Number(a) - Number(b))
           .map((gn) => ({
             groupNumber: Number(gn),
-            players: groupMap[Number(gn)],
+            // Group teammates together by sorting by team name
+            players: [...groupMap[Number(gn)]].sort((a, b) => a.team_name.localeCompare(b.team_name)),
           }))
 
         setFoursomes(foursomeList)

@@ -269,10 +269,20 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
       const hasTeamPlayer = playerIds.some((pid) => teamPlayerIds.includes(pid))
       if (!hasTeamPlayer) return
 
-      const players = playerIds.map((pid) => {
-        const player = allPlayers.find((p) => p.id === pid)
-        return { id: pid, name: player?.name || "Unknown", teamId: player?.team_id || "" }
-      })
+      const players = playerIds
+        .map((pid) => {
+          const player = allPlayers.find((p) => p.id === pid)
+          const team = teams.find((t) => t.id === player?.team_id)
+          return {
+            id: pid,
+            name: player?.name || "Unknown",
+            teamId: player?.team_id || "",
+            teamName: team?.name || "",
+          }
+        })
+        // Group teammates together by sorting by team name
+        .sort((a, b) => a.teamName.localeCompare(b.teamName))
+        .map(({ id, name, teamId }) => ({ id, name, teamId }))
 
       const foursomeHoles: { holeNumber: number; players: { playerId: string; teamId: string; strokes: number }[] }[] = []
       holes.forEach((hole) => {
