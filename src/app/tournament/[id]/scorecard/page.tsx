@@ -281,8 +281,12 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
             teamName: team?.name || "",
           }
         })
-        // Group teammates together by sorting by team name
-        .sort((a, b) => a.teamName.localeCompare(b.teamName))
+        // Group teammates together; selected team always appears first for consistency
+        .sort((a, b) => {
+          if (a.teamId === selectedTeam!.id && b.teamId !== selectedTeam!.id) return -1
+          if (b.teamId === selectedTeam!.id && a.teamId !== selectedTeam!.id) return 1
+          return a.teamName.localeCompare(b.teamName)
+        })
         .map(({ id, name, teamId }) => ({ id, name, teamId }))
 
       const foursomeHoles: { holeNumber: number; players: { playerId: string; teamId: string; strokes: number }[] }[] = []
