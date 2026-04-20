@@ -727,11 +727,9 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                             }
                             if (result.winner) {
                               const isOurTeam = result.winner.teamId === selectedTeam!.id
-                              const winnerTeam = teams.find((t) => t.id === result.winner!.teamId)
-                              const teamInitial = winnerTeam?.name?.charAt(0) || "?"
                               return (
                                 <td key={h.hole_number} className={`px-1 py-2 text-xs text-center font-bold ${isOurTeam ? "text-green-700" : "text-gray-400"}`}>
-                                  {isOurTeam ? result.skinsWon : teamInitial}
+                                  {isOurTeam ? result.skinsWon : "X"}
                                 </td>
                               )
                             }
