@@ -577,7 +577,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                   setCurrentHole(currentHole + 1)
                 } else {
                   await saveHoleScores(18)
-                  router.push(`/tournament/${tournamentId}/leaderboard`)
+                  router.push(`/tournament/${tournamentId}/scorecard?round=2`)
                 }
               }}
               className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
