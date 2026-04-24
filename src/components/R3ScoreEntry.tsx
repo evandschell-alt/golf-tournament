@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { adjustedStablefordPoints, round3TotalPoints, scoreLabel } from "@/lib/scoring"
 
@@ -14,6 +15,7 @@ type Props = {
 }
 
 export default function R3ScoreEntry({ tournamentId, team }: Props) {
+  const router = useRouter()
   const [holes, setHoles] = useState<Hole[]>([])
   const [currentHole, setCurrentHole] = useState(1)
   const [scores, setScores] = useState<{ [holeNumber: number]: number }>({}) // just strokes per hole
@@ -415,16 +417,18 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
               &larr; Prev
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (currentHole < 18) {
                   saveHoleScores(currentHole)
                   setCurrentHole(currentHole + 1)
+                } else {
+                  await saveHoleScores(18)
+                  router.push(`/tournament/${tournamentId}/leaderboard`)
                 }
               }}
-              disabled={currentHole === 18}
-              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-30 transition-colors"
+              className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
             >
-              Next &rarr;
+              {currentHole < 18 ? "Next \u2192" : "Finish \u2713"}
             </button>
           </div>
         </div>

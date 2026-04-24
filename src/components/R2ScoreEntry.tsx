@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { calculateSkins, scoreLabel } from "@/lib/scoring"
 
@@ -26,6 +27,7 @@ type Props = {
 }
 
 export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Props) {
+  const router = useRouter()
   const [foursomes, setFoursomes] = useState<Foursome[]>([])
   const [selectedFoursome, setSelectedFoursome] = useState<Foursome | null>(null)
   const [holes, setHoles] = useState<Hole[]>([])
@@ -575,6 +577,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                   setCurrentHole(currentHole + 1)
                 } else {
                   await saveHoleScores(18)
+                  router.push(`/tournament/${tournamentId}/leaderboard`)
                 }
               }}
               className="flex-1 rounded-xl bg-green-700 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
