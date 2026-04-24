@@ -111,9 +111,11 @@ type SkinPlayerScore = {
 
 type SkinHoleResult = {
   holeNumber: number
-  winner: { playerId: string; teamId: string } | null  // null = carry over
+  // winner: the team that won the skin and which of their players had the team's best ball.
+  // null = carry over (teams tied on best ball).
+  winner: { teamId: string; playerIds: string[] } | null
   skinsWon: number  // how many skins this hole was worth (includes carry-overs)
-  carryOver: number // skins carrying to next hole (0 if someone won)
+  carryOver: number // skins carrying to next hole (0 if a team won)
 }
 
 type SkinsSummary = {
@@ -124,13 +126,18 @@ type SkinsSummary = {
 }
 
 /**
- * Round 2 Skins: Calculate skins results for a foursome across all holes.
+ * Round 2 Skins (Best Ball): Calculate skins results for a foursome across all holes.
  *
  * Rules:
  * - Each hole is worth 1 skin
- * - Lowest score wins outright → takes all accumulated skins
- * - Tie for lowest → skin carries over to next hole
- * - After hole 18: remaining carry-over skins split evenly among tied players (half-point)
+ * - Each team's hole score = its best (lowest) player score on that hole
+ * - Team with the lowest best-ball wins outright → takes all accumulated skins
+ * - Teams tied on best-ball → skin carries over to next hole
+ * - After hole 18: remaining carry-over skins split evenly among tied teams (half-point)
+ *
+ * Per-player credit:
+ * - If one player on the winning team had the team's best ball, they get full credit
+ * - If both teammates tied on the team's best ball, they split 50/50
  *
  * @param holesData - Array of { holeNumber, players: [...] } for each completed hole, in order
  * @returns SkinsSummary with per-hole results, team totals, and carry-over tracker
@@ -155,42 +162,65 @@ export function calculateSkins(
     const hole = holesData[i]
     const skinsAtStake = 1 + carryOver
 
-    // Find the lowest score
-    const lowestScore = Math.min(...hole.players.map((p) => p.strokes))
-    const playersWithLowest = hole.players.filter((p) => p.strokes === lowestScore)
+    // Compute each team's best ball (lowest player score) on this hole,
+    // and track which players on that team tied for that best score.
+    const teamBest: { [teamId: string]: { score: number; playerIds: string[] } } = {}
+    hole.players.forEach((p) => {
+      const existing = teamBest[p.teamId]
+      if (!existing || p.strokes < existing.score) {
+        teamBest[p.teamId] = { score: p.strokes, playerIds: [p.playerId] }
+      } else if (p.strokes === existing.score) {
+        existing.playerIds.push(p.playerId)
+      }
+    })
+
+    // Find the lowest team best-ball and which team(s) had it.
+    const teamIds = Object.keys(teamBest)
+    const lowestTeamScore = Math.min(...teamIds.map((id) => teamBest[id].score))
+    const winningTeamIds = teamIds.filter((id) => teamBest[id].score === lowestTeamScore)
 
     const isLastHole = i === holesData.length - 1 && hole.holeNumber === 18
 
-    if (playersWithLowest.length === 1) {
-      // Outright winner — takes all skins
-      const winner = playersWithLowest[0]
-      playerSkins[winner.playerId] += skinsAtStake
-      teamSkins[winner.teamId] += skinsAtStake
+    if (winningTeamIds.length === 1) {
+      // Outright team winner — takes all skins
+      const winnerTeamId = winningTeamIds[0]
+      const winnerPlayerIds = teamBest[winnerTeamId].playerIds
+
+      teamSkins[winnerTeamId] += skinsAtStake
+      const perPlayer = skinsAtStake / winnerPlayerIds.length
+      winnerPlayerIds.forEach((pid) => {
+        playerSkins[pid] += perPlayer
+      })
 
       holeResults.push({
         holeNumber: hole.holeNumber,
-        winner: { playerId: winner.playerId, teamId: winner.teamId },
+        winner: { teamId: winnerTeamId, playerIds: winnerPlayerIds },
         skinsWon: skinsAtStake,
         carryOver: 0,
       })
       carryOver = 0
     } else if (isLastHole) {
-      // Tie on hole 18 — split remaining skins (half-point rule)
-      const splitAmount = skinsAtStake / playersWithLowest.length
-      playersWithLowest.forEach((p) => {
-        playerSkins[p.playerId] += splitAmount
-        teamSkins[p.teamId] += splitAmount
+      // Teams tied on hole 18 — split remaining skins across tied teams (half-point).
+      // Within each winning team, split that team's share among its best-ball players.
+      const perTeam = skinsAtStake / winningTeamIds.length
+      winningTeamIds.forEach((tid) => {
+        teamSkins[tid] += perTeam
+        const pids = teamBest[tid].playerIds
+        const perPlayer = perTeam / pids.length
+        pids.forEach((pid) => {
+          playerSkins[pid] += perPlayer
+        })
       })
 
       holeResults.push({
         holeNumber: hole.holeNumber,
-        winner: null, // split, no outright winner
+        winner: null, // split, no outright team winner
         skinsWon: skinsAtStake,
         carryOver: 0,
       })
       carryOver = 0
     } else {
-      // Tie — carry over
+      // Teams tied — carry over
       holeResults.push({
         holeNumber: hole.holeNumber,
         winner: null,

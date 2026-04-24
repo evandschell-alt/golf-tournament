@@ -428,10 +428,18 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
             }
 
             if (holeResult.winner) {
-              const winnerPlayer = selectedFoursome.players.find((p) => p.id === holeResult.winner!.playerId)
+              const winningPlayers = selectedFoursome.players.filter((p) =>
+                holeResult.winner!.playerIds.includes(p.id)
+              )
+              const teamName = selectedFoursome.players.find(
+                (p) => p.team_id === holeResult.winner!.teamId
+              )?.team_name || ""
+              // One player alone had the team's best ball → show their name.
+              // Both teammates tied for it → show the team name.
+              const label = winningPlayers.length === 1 ? winningPlayers[0].name : teamName
               return (
                 <div className="mt-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800">
-                  {winnerPlayer?.name} wins {holeResult.skinsWon} skin{holeResult.skinsWon !== 1 ? "s" : ""}!
+                  {label} wins {holeResult.skinsWon} skin{holeResult.skinsWon !== 1 ? "s" : ""}!
                 </div>
               )
             } else if (holeResult.carryOver > 0) {
@@ -463,7 +471,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
             let wonSkin = false
             if (skinsResults) {
               const holeResult = skinsResults.holeResults.find((r) => r.holeNumber === currentHole)
-              if (holeResult?.winner?.playerId === player.id) wonSkin = true
+              if (holeResult?.winner?.playerIds.includes(player.id)) wonSkin = true
             }
 
             // Per-player moneyball state

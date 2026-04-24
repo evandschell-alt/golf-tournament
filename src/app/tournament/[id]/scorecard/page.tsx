@@ -231,10 +231,22 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         completed = Math.max(completed, foursomeHoles.length)
 
         result.holeResults.forEach((hr) => {
-          const winnerPlayer = hr.winner ? allPlayers.find((p) => p.id === hr.winner!.playerId) : null
+          // For the scorecard "who won" label:
+          // - If one player had the team's best ball alone, show their name.
+          // - If both teammates tied for it, show the team name.
+          let winnerLabel: string | null = null
+          if (hr.winner) {
+            const winnerPlayers = allPlayers.filter((p) => hr.winner!.playerIds.includes(p.id))
+            if (winnerPlayers.length === 1) {
+              winnerLabel = winnerPlayers[0].name
+            } else {
+              const teamName = teams.find((t) => t.id === hr.winner!.teamId)?.name
+              winnerLabel = teamName || null
+            }
+          }
           allHoleResults.push({
             holeNumber: hr.holeNumber,
-            winner: winnerPlayer?.name || null,
+            winner: winnerLabel,
             skinsWon: hr.skinsWon,
             carryOver: hr.carryOver,
           })
@@ -252,7 +264,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     completed: number
     teamSkinsInGroup: number
     allTeamSkins: { [teamId: string]: number }
-    holeResults: { [holeNumber: number]: { winner: { playerId: string; teamId: string } | null; skinsWon: number; carryOver: number } }
+    holeResults: { [holeNumber: number]: { winner: { teamId: string; playerIds: string[] } | null; skinsWon: number; carryOver: number } }
   }[] {
     if (!selectedTeam) return []
 
