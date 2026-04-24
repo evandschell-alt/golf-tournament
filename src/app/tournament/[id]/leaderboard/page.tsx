@@ -369,45 +369,45 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
                       </div>
                     </div>
 
-                    {/* Round breakdown */}
+                    {/* Round breakdown — shades match the scorecard's round cards */}
                     <div className="flex gap-2">
-                      {/* R1 Best Ball */}
+                      {/* R1 Best Ball (green-500 when active) */}
                       <div className={`flex-1 rounded-lg px-3 py-2 ${
-                        standing.round1Completed > 0 ? "bg-green-50" : "bg-gray-50"
+                        standing.round1Completed > 0 ? "bg-green-500" : "bg-gray-50"
                       }`}>
-                        <p className={`text-xs font-semibold ${standing.round1Completed > 0 ? "text-green-600" : "text-gray-400"}`}>R1 Best Ball</p>
-                        <p className={`text-sm font-bold ${standing.round1Completed > 0 ? "text-green-900" : "text-gray-300"}`}>
+                        <p className={`text-xs font-semibold ${standing.round1Completed > 0 ? "text-green-100" : "text-gray-400"}`}>R1 Best Ball</p>
+                        <p className={`text-sm font-bold ${standing.round1Completed > 0 ? "text-white" : "text-gray-300"}`}>
                           {standing.round1Completed > 0 ? `${standing.round1Points} pts` : "–"}
                         </p>
-                        <p className={`text-xs ${standing.round1Completed > 0 ? "text-green-500" : "text-gray-300"}`}>
+                        <p className={`text-xs ${standing.round1Completed > 0 ? "text-green-100" : "text-gray-300"}`}>
                           {standing.round1Completed > 0 ? `${standing.round1Completed}/18 holes` : "upcoming"}
                         </p>
                       </div>
 
-                      {/* R2 Skins */}
+                      {/* R2 Skins (green-700 when active) */}
                       <div className={`flex-1 rounded-lg px-3 py-2 ${
-                        standing.round2Completed > 0 ? "bg-yellow-50" : "bg-gray-50"
+                        standing.round2Completed > 0 ? "bg-green-700" : "bg-gray-50"
                       }`}>
-                        <p className={`text-xs font-semibold ${standing.round2Completed > 0 ? "text-yellow-700" : "text-gray-400"}`}>R2 Skins</p>
-                        <p className={`text-sm font-bold ${standing.round2Completed > 0 ? "text-yellow-900" : "text-gray-300"}`}>
+                        <p className={`text-xs font-semibold ${standing.round2Completed > 0 ? "text-green-200" : "text-gray-400"}`}>R2 Skins</p>
+                        <p className={`text-sm font-bold ${standing.round2Completed > 0 ? "text-white" : "text-gray-300"}`}>
                           {standing.round2Completed > 0
                             ? `${standing.round2Skins % 1 === 0 ? standing.round2Skins : standing.round2Skins.toFixed(1)} skins`
                             : "–"}
                         </p>
-                        <p className={`text-xs ${standing.round2Completed > 0 ? "text-yellow-600" : "text-gray-300"}`}>
+                        <p className={`text-xs ${standing.round2Completed > 0 ? "text-green-200" : "text-gray-300"}`}>
                           {standing.round2Completed > 0 ? `${standing.round2Completed}/18 holes` : "upcoming"}
                         </p>
                       </div>
 
-                      {/* R3 Scramble */}
+                      {/* R3 Scramble (green-800 when active) */}
                       <div className={`flex-1 rounded-lg px-3 py-2 ${
-                        standing.round3Completed > 0 ? "bg-green-50" : "bg-gray-50"
+                        standing.round3Completed > 0 ? "bg-green-800" : "bg-gray-50"
                       }`}>
-                        <p className={`text-xs font-semibold ${standing.round3Completed > 0 ? "text-green-600" : "text-gray-400"}`}>R3 Scramble</p>
-                        <p className={`text-sm font-bold ${standing.round3Completed > 0 ? "text-green-900" : "text-gray-300"}`}>
+                        <p className={`text-xs font-semibold ${standing.round3Completed > 0 ? "text-green-300" : "text-gray-400"}`}>R3 Scramble</p>
+                        <p className={`text-sm font-bold ${standing.round3Completed > 0 ? "text-white" : "text-gray-300"}`}>
                           {standing.round3Completed > 0 ? `${standing.round3Points} pts` : "–"}
                         </p>
-                        <p className={`text-xs ${standing.round3Completed > 0 ? "text-green-500" : "text-gray-300"}`}>
+                        <p className={`text-xs ${standing.round3Completed > 0 ? "text-green-300" : "text-gray-300"}`}>
                           {standing.round3Completed > 0 ? `${standing.round3Completed}/18 holes` : "upcoming"}
                         </p>
                       </div>
