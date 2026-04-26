@@ -4,6 +4,14 @@ import { useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
+function isHeic(file: File) {
+  return (
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    /\.(heic|heif)$/i.test(file.name)
+  )
+}
+
 export default function CloseTournamentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
   const router = useRouter()
@@ -15,13 +23,28 @@ export default function CloseTournamentPage({ params }: { params: Promise<{ id: 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setPhoto(file)
+
+    let finalFile = file
+    if (isHeic(file)) {
+      try {
+        const heic2any = (await import("heic2any")).default
+        const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 })
+        const blob = Array.isArray(converted) ? converted[0] : converted
+        finalFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" })
+      } catch (convErr) {
+        console.error("HEIC conversion failed:", convErr)
+        setError("Could not process this photo format. Please try a different photo.")
+        return
+      }
+    }
+
+    setPhoto(finalFile)
     const reader = new FileReader()
     reader.onloadend = () => setPhotoPreview(reader.result as string)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(finalFile)
   }
 
   const handleSubmit = async () => {
@@ -40,10 +63,11 @@ export default function CloseTournamentPage({ params }: { params: Promise<{ id: 
       const path = `winners/${tournamentId}/winner.${ext}`
       const { error: uploadError } = await supabase.storage
         .from("tournament-photos")
-        .upload(path, photo, { upsert: true })
+        .upload(path, photo, { upsert: true, contentType: photo.type || "image/jpeg" })
 
       if (uploadError) {
-        setError("Photo upload failed. Please try again.")
+        console.error("Supabase upload error:", uploadError)
+        setError(`Photo upload failed: ${uploadError.message}`)
         setSubmitting(false)
         return
       }
