@@ -221,7 +221,7 @@ export default function Home() {
                           <p className="text-xs text-green-400 mt-0.5">{formatDate(t.date)}</p>
                         )}
                       </div>
-                      <span className="text-2xl font-bold text-green-100 shrink-0">{t.year}</span>
+                      <span className="text-2xl font-bold text-green-300 shrink-0">{t.year}</span>
                     </div>
                   </div>
                 </Link>
