@@ -3,6 +3,7 @@
 import { useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import OrganizerGuard from "@/components/OrganizerGuard"
 
 function isHeic(file: File) {
   return (
@@ -13,6 +14,14 @@ function isHeic(file: File) {
 }
 
 export default function CloseTournamentPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <OrganizerGuard>
+      <CloseContent params={params} />
+    </OrganizerGuard>
+  )
+}
+
+function CloseContent({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
   const router = useRouter()
 

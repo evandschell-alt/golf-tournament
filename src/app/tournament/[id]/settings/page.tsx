@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
+import OrganizerGuard from "@/components/OrganizerGuard"
 
 type Player = { id: string; name: string; handicap: number | null; person_id: string }
 type Team = { id: string; name: string; players: Player[] }
@@ -51,6 +52,14 @@ function SaveCancelRow({ onSave, onCancel, saving }: { onSave: () => void; onCan
 }
 
 export default function SettingsPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <OrganizerGuard>
+      <SettingsContent params={params} />
+    </OrganizerGuard>
+  )
+}
+
+function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
   const router = useRouter()
   const [loading, setLoading] = useState(true)

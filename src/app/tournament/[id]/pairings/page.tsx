@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
+import OrganizerGuard from "@/components/OrganizerGuard"
 
 type Player = {
   id: string
@@ -25,6 +26,14 @@ type Group = {
 }
 
 export default function PairingsPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <OrganizerGuard>
+      <PairingsContent params={params} />
+    </OrganizerGuard>
+  )
+}
+
+function PairingsContent({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
   const [teams, setTeams] = useState<Team[]>([])
   const [groups, setGroups] = useState<Group[]>([])

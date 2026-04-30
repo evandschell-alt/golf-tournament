@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/lib/supabase"
+import OrganizerGuard from "@/components/OrganizerGuard"
 
 // ============================================
 // PLAYER INPUT with typeahead
@@ -534,6 +535,14 @@ function SuccessScreen({ tournamentId }: { tournamentId: string }) {
 // MAIN SETUP PAGE
 // ============================================
 export default function SetupPage() {
+  return (
+    <OrganizerGuard>
+      <SetupContent />
+    </OrganizerGuard>
+  )
+}
+
+function SetupContent() {
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
