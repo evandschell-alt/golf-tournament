@@ -43,7 +43,6 @@ function PlayerInput({
 
   async function handleNameChange(value: string) {
     onUpdate("displayName", value)
-    onUpdate("personId", null)
 
     if (value.trim().length >= 1) {
       const { data } = await supabase
@@ -383,21 +382,22 @@ function TeamsStep({
     field: keyof PlayerForm,
     value: string | boolean | null
   ) => {
-    setTeams((prev) => {
-      const updated = [...prev]
-      const players = [...updated[teamIndex].players]
+    const updated = [...teams]
+    const players = [...updated[teamIndex].players]
 
-      if (field === "isCaptain" && value === true) {
-        players.forEach((p, i) => {
-          players[i] = { ...p, isCaptain: i === playerIndex }
-        })
-      } else {
-        players[playerIndex] = { ...players[playerIndex], [field]: value }
-      }
+    if (field === "isCaptain" && value === true) {
+      players.forEach((p, i) => {
+        players[i] = { ...p, isCaptain: i === playerIndex }
+      })
+    } else if (field === "displayName") {
+      // reset personId in the same update to avoid a second setTeams call
+      players[playerIndex] = { ...players[playerIndex], displayName: value as string, personId: null }
+    } else {
+      players[playerIndex] = { ...players[playerIndex], [field]: value }
+    }
 
-      updated[teamIndex] = { ...updated[teamIndex], players }
-      return updated
-    })
+    updated[teamIndex] = { ...updated[teamIndex], players }
+    setTeams(updated)
   }
 
   // Collect all selected personIds across all teams to prevent duplicates
