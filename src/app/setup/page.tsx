@@ -383,20 +383,21 @@ function TeamsStep({
     field: keyof PlayerForm,
     value: string | boolean | null
   ) => {
-    const updated = [...teams]
-    const players = [...updated[teamIndex].players]
+    setTeams((prev) => {
+      const updated = [...prev]
+      const players = [...updated[teamIndex].players]
 
-    if (field === "isCaptain" && value === true) {
-      // Unset all other captains on this team first
-      players.forEach((p, i) => {
-        players[i] = { ...p, isCaptain: i === playerIndex }
-      })
-    } else {
-      players[playerIndex] = { ...players[playerIndex], [field]: value }
-    }
+      if (field === "isCaptain" && value === true) {
+        players.forEach((p, i) => {
+          players[i] = { ...p, isCaptain: i === playerIndex }
+        })
+      } else {
+        players[playerIndex] = { ...players[playerIndex], [field]: value }
+      }
 
-    updated[teamIndex] = { ...updated[teamIndex], players }
-    setTeams(updated)
+      updated[teamIndex] = { ...updated[teamIndex], players }
+      return updated
+    })
   }
 
   // Collect all selected personIds across all teams to prevent duplicates
