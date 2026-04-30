@@ -108,16 +108,21 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, players(id, name, sort_order)")
+        .select("id, name, sort_order, tournament_players(id, sort_order, people(display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
       if (teamsData) {
         const sorted = teamsData.map((t) => ({
           ...t,
-          players: (t.players || []).sort(
-            (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order
-          ),
+          players: (t.tournament_players || [])
+            .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((tp: any) => ({
+              id: tp.id as string,
+              name: tp.people.display_name as string,
+              sort_order: tp.sort_order as number,
+            })),
         }))
         setTeams(sorted)
 
@@ -126,12 +131,20 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           if (urlTeam) setSelectedTeam(urlTeam)
         }
 
-        // All players for skins mapping
+        // All tournament_players for skins mapping
         const { data: playersData } = await supabase
-          .from("players")
-          .select("id, name, sort_order, team_id")
+          .from("tournament_players")
+          .select("id, sort_order, team_id, people(display_name)")
           .in("team_id", sorted.map((t) => t.id))
-        setAllPlayers(playersData || [])
+        setAllPlayers(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (playersData || []).map((tp: any) => ({
+            id: tp.id as string,
+            name: tp.people.display_name as string,
+            sort_order: tp.sort_order as number,
+            team_id: tp.team_id as string,
+          }))
+        )
       }
 
       // All scores

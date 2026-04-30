@@ -50,7 +50,7 @@ export default function PairingsPage({ params }: { params: Promise<{ id: string 
       // Fetch teams and players
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, players(id, name, sort_order)")
+        .select("id, name, sort_order, tournament_players(id, sort_order, people(display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
@@ -60,12 +60,18 @@ export default function PairingsPage({ params }: { params: Promise<{ id: string 
         return
       }
 
-      // Sort players within each team
+      // Sort players within each team and flatten name from people
       const sortedTeams = teamsData.map((t) => ({
         ...t,
-        players: (t.players || [])
+        players: (t.tournament_players || [])
           .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
-          .map((p: { id: string; name: string; sort_order: number }) => ({ ...p, team_id: t.id })),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((tp: any) => ({
+            id: tp.id as string,
+            name: tp.people.display_name as string,
+            sort_order: tp.sort_order as number,
+            team_id: t.id,
+          })),
       }))
 
       setTeams(sortedTeams)

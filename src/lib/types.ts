@@ -13,9 +13,6 @@ export type Hole = {
   course_id: string
   hole_number: number
   par: number
-  yardage_white: number | null
-  yardage_blue: number | null
-  yardage_red: number | null
 }
 
 export type Tournament = {
@@ -39,13 +36,28 @@ export type Team = {
   created_at: string
 }
 
-export type Player = {
+// A real-world person who has ever participated in a SuperDay.
+// Exists once, forever, across all tournaments.
+export type Person = {
   id: string
+  display_name: string
+  email: string | null
+  created_at: string
+}
+
+// A person's participation in one specific tournament.
+// Captures year-specific data like handicap and captain status.
+export type TournamentPlayer = {
+  id: string
+  person_id: string
+  tournament_id: string
   team_id: string
-  name: string
-  handicap: number
+  handicap: number | null
+  is_captain: boolean
+  captain_code: string | null
   sort_order: number
   created_at: string
+  people?: Person
 }
 
 export type RoundSetting = {
@@ -60,7 +72,7 @@ export type R2Pairing = {
   id: string
   tournament_id: string
   group_number: number
-  player_id: string
+  player_id: string  // references tournament_players.id
 }
 
 export type Score = {
@@ -68,7 +80,7 @@ export type Score = {
   tournament_id: string
   round_number: number
   hole_number: number
-  player_id: string | null
+  player_id: string | null  // references tournament_players.id
   team_id: string
   strokes: number
   moneyball_used: boolean

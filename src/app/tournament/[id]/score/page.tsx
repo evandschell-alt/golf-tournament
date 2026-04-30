@@ -10,7 +10,7 @@ import R3ScoreEntry from "@/components/R3ScoreEntry"
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number; yardage_white: number | null; yardage_blue: number | null; yardage_red: number | null }
+type Hole = { hole_number: number; par: number }
 
 type HoleScores = {
   [playerId: string]: {
@@ -101,7 +101,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par, yardage_white, yardage_blue, yardage_red")
+            .select("hole_number, par")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
 
@@ -112,16 +112,21 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       // Fetch teams and players
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, players(id, name, sort_order)")
+        .select("id, name, sort_order, tournament_players(id, sort_order, people(display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
       if (teamsData) {
         const sorted = teamsData.map((t) => ({
           ...t,
-          players: (t.players || []).sort(
-            (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order
-          ),
+          players: (t.tournament_players || [])
+            .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((tp: any) => ({
+              id: tp.id as string,
+              name: tp.people.display_name as string,
+              sort_order: tp.sort_order as number,
+            })),
         }))
         setTeams(sorted)
 
@@ -131,9 +136,9 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           if (urlTeam) setSelectedTeam(urlTeam)
         }
 
-        // Fetch all players for total points calc
+        // Fetch all tournament_players for total points calc
         const { data: playersData } = await supabase
-          .from("players")
+          .from("tournament_players")
           .select("id, team_id")
           .in("team_id", sorted.map((t) => t.id))
         setAllPlayers(playersData || [])
@@ -217,13 +222,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
 
     loadScores()
   }, [selectedTeam, tournamentId, roundNumber])
-
-  // Get the tee yardage for the current round
-  function getYardage(hole: Hole): number | null {
-    if (roundNumber === 1) return hole.yardage_white
-    if (roundNumber === 2) return hole.yardage_blue
-    return hole.yardage_red
-  }
 
   // Get or initialize scores for a hole (default to 0 = blank/dash)
   function getHoleScores(holeNumber: number): HoleScores {
@@ -663,7 +661,6 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
-              {getYardage(hole) && <span>{getYardage(hole)} yds</span>}
             </div>
           </div>
 

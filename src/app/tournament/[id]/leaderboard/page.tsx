@@ -7,7 +7,7 @@ import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
-type Player = { id: string; name: string; team_id: string }
+type Player = { id: string; team_id: string }
 type Hole = { hole_number: number; par: number }
 type R2Pairing = { group_number: number; player_id: string }
 type ScoreRow = {
@@ -217,10 +217,10 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
-      // Fetch players (needed for R2 skins team mapping)
+      // Fetch tournament_players (needed for R2 skins team mapping)
       const { data: playersData } = await supabase
-        .from("players")
-        .select("id, name, team_id")
+        .from("tournament_players")
+        .select("id, team_id")
         .in("team_id", (teamsData || []).map((t) => t.id))
 
       // Fetch R2 pairings

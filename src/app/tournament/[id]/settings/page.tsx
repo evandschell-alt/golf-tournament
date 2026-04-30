@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect, use } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
 
-type Player = { id: string; name: string; handicap: number | null }
+type Player = { id: string; name: string; handicap: number | null; person_id: string }
 type Team = { id: string; name: string; players: Player[] }
 type RoundSetting = { round_number: number; format: string; tee_box: string }
 
@@ -51,9 +52,12 @@ function SaveCancelRow({ onSave, onCancel, saving }: { onSave: () => void; onCan
 
 export default function SettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingSection, setEditingSection] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Raw data
   const [tournamentRaw, setTournamentRaw] = useState({ name: "", year: 0, date: "" })
@@ -99,16 +103,22 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
 
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, players(id, name, handicap, sort_order)")
+        .select("id, name, sort_order, tournament_players(id, handicap, sort_order, people(id, display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
       if (teamsData) {
         const sorted = teamsData.map((t) => ({
           ...t,
-          players: (t.players || []).sort(
-            (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order
-          ),
+          players: (t.tournament_players || [])
+            .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((tp: any) => ({
+              id: tp.id as string,
+              name: tp.people.display_name as string,
+              handicap: tp.handicap as number | null,
+              person_id: tp.people.id as string,
+            })),
         }))
         setTeams(sorted)
       }
@@ -160,10 +170,9 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
     for (const team of draftTeams) {
       await supabase.from("teams").update({ name: team.name }).eq("id", team.id)
       for (const player of team.players) {
-        await supabase.from("players").update({
-          name: player.name,
-          handicap: player.handicap,
-        }).eq("id", player.id)
+        // name lives on people, handicap lives on tournament_players
+        await supabase.from("people").update({ display_name: player.name }).eq("id", player.person_id)
+        await supabase.from("tournament_players").update({ handicap: player.handicap }).eq("id", player.id)
       }
     }
     setTeams(JSON.parse(JSON.stringify(draftTeams)))
@@ -191,6 +200,18 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   function openTeams() {
     setDraftTeams(JSON.parse(JSON.stringify(teams)))
     setEditingSection("teams")
+  }
+
+  async function deleteTournament() {
+    setDeleting(true)
+    await supabase.from("scores").delete().eq("tournament_id", tournamentId)
+    await supabase.from("r2_pairings").delete().eq("tournament_id", tournamentId)
+    await supabase.from("tournament_players").delete().eq("tournament_id", tournamentId)
+    await supabase.from("teams").delete().eq("tournament_id", tournamentId)
+    await supabase.from("round_settings").delete().eq("tournament_id", tournamentId)
+    await supabase.from("tournaments").delete().eq("id", tournamentId)
+    if (courseId) await supabase.from("courses").delete().eq("id", courseId)
+    router.push("/")
   }
 
   if (loading) {
@@ -491,8 +512,53 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
             </div>
           </Link>
 
+          {/* ── DELETE SUPERDAY ──────────────────────────────────── */}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full rounded-xl bg-white border border-red-200 p-4 hover:bg-red-50 transition-colors mt-2 text-left"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-semibold text-red-500 uppercase tracking-wide">Delete SuperDay</h3>
+                <p className="text-sm text-green-900 mt-0.5">Permanently remove this SuperDay and all its data</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-red-400">
+                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </button>
+
         </div>
       </div>
+
+      {/* ── DELETE CONFIRMATION MODAL ────────────────────────── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-red-700 mb-2">Delete SuperDay?</h2>
+            <p className="text-sm text-green-800 mb-1">
+              This will permanently delete <span className="font-semibold">{tournamentRaw.name} {tournamentRaw.year}</span> and all of its scores, teams, and data.
+            </p>
+            <p className="text-sm text-red-600 font-medium mb-6">This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 rounded-lg border border-green-300 py-2.5 text-sm font-medium text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteTournament}
+                disabled={deleting}
+                className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav tournamentId={tournamentId} />
     </div>

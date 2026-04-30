@@ -1,8 +1,168 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/lib/supabase"
-import type { Tournament, Course, Hole, Team, Player } from "@/lib/types"
+
+// ============================================
+// PLAYER INPUT with typeahead
+// ============================================
+type PersonSuggestion = { id: string; display_name: string }
+
+type PlayerForm = {
+  personId: string | null  // null = new person (will be created on save)
+  displayName: string
+  handicap: string
+  isCaptain: boolean
+}
+
+function PlayerInput({
+  player,
+  playerIndex,
+  onUpdate,
+  excludePersonIds,
+}: {
+  player: PlayerForm
+  playerIndex: number
+  onUpdate: (field: keyof PlayerForm, value: string | boolean | null) => void
+  excludePersonIds: string[]
+}) {
+  const [suggestions, setSuggestions] = useState<PersonSuggestion[]>([])
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  async function handleNameChange(value: string) {
+    onUpdate("displayName", value)
+    onUpdate("personId", null)
+
+    if (value.trim().length >= 1) {
+      const { data } = await supabase
+        .from("people")
+        .select("id, display_name")
+        .ilike("display_name", `%${value.trim()}%`)
+        .limit(6)
+
+      const filtered = (data || []).filter(
+        (p) => !excludePersonIds.includes(p.id)
+      )
+      setSuggestions(filtered)
+      setOpen(true)
+    } else {
+      setSuggestions([])
+      setOpen(false)
+    }
+  }
+
+  function selectPerson(person: PersonSuggestion) {
+    onUpdate("personId", person.id)
+    onUpdate("displayName", person.display_name)
+    setSuggestions([])
+    setOpen(false)
+  }
+
+  function selectNew() {
+    onUpdate("personId", null)
+    setSuggestions([])
+    setOpen(false)
+  }
+
+  const isConfirmed = !!player.personId || player.displayName.trim().length > 0
+
+  return (
+    <div className="grid grid-cols-[1fr_4.5rem_2.5rem] gap-2 items-start">
+      {/* Name field with typeahead */}
+      <div ref={wrapperRef} className="relative">
+        {playerIndex === 0 && (
+          <span className="block text-xs font-medium text-green-700 mb-1">Player Name</span>
+        )}
+        <div className={`flex items-center rounded-lg border ${player.personId ? "border-green-500 bg-green-50" : "border-green-300 bg-white"}`}>
+          <input
+            type="text"
+            value={player.displayName}
+            onChange={(e) => handleNameChange(e.target.value)}
+            onFocus={() => {
+              if (suggestions.length > 0) setOpen(true)
+            }}
+            className="flex-1 px-3 py-2.5 text-sm text-green-900 bg-transparent focus:outline-none rounded-lg"
+            placeholder={`Player ${playerIndex + 1}`}
+          />
+          {player.personId && (
+            <span className="pr-2 text-green-500 text-xs">✓</span>
+          )}
+        </div>
+
+        {open && (
+          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-green-200 shadow-lg overflow-hidden">
+            {suggestions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onMouseDown={() => selectPerson(s)}
+                className="w-full px-3 py-2.5 text-left text-sm text-green-900 hover:bg-green-50 transition-colors"
+              >
+                {s.display_name}
+              </button>
+            ))}
+            {player.displayName.trim() && !player.personId && (
+              <button
+                type="button"
+                onMouseDown={selectNew}
+                className="w-full px-3 py-2.5 text-left text-sm text-green-600 font-medium hover:bg-green-50 border-t border-green-100 transition-colors"
+              >
+                + Add &ldquo;{player.displayName.trim()}&rdquo; as new player
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Handicap */}
+      <div>
+        {playerIndex === 0 && (
+          <span className="block text-xs font-medium text-green-700 mb-1">HCP</span>
+        )}
+        <input
+          type="number"
+          value={player.handicap}
+          onChange={(e) => onUpdate("handicap", e.target.value)}
+          className="w-full rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="0"
+        />
+      </div>
+
+      {/* Captain checkbox */}
+      <div className="flex flex-col items-center">
+        {playerIndex === 0 && (
+          <span className="block text-xs font-medium text-green-700 mb-1">Capt</span>
+        )}
+        <div
+          className={`w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+            player.isCaptain
+              ? "bg-yellow-400 text-yellow-900"
+              : "bg-gray-100 text-gray-400 hover:bg-yellow-50"
+          }`}
+          onClick={() => onUpdate("isCaptain", !player.isCaptain)}
+          title={player.isCaptain ? "Captain" : "Set as captain"}
+        >
+          <span className="text-sm">C</span>
+        </div>
+      </div>
+
+      {/* Suppress unused var warning */}
+      {isConfirmed && null}
+    </div>
+  )
+}
 
 // ============================================
 // STEP 1: Tournament Info
@@ -93,7 +253,7 @@ function CourseStep({
 }: {
   courseName: string
   setCourseName: (n: string) => void
-  holes: { hole_number: number; par: number; yardage_white: string; yardage_blue: string; yardage_red: string }[]
+  holes: { hole_number: number; par: number }[]
   setHoles: (h: typeof holes) => void
   onNext: () => void
   onBack: () => void
@@ -110,7 +270,7 @@ function CourseStep({
     <div className="flex flex-col gap-6 overflow-x-hidden">
       <div>
         <h2 className="text-2xl font-bold text-green-900">Course Setup</h2>
-        <p className="text-sm text-green-700 mt-1">Enter the course name and details for each hole. Par is required; yardages are optional.</p>
+        <p className="text-sm text-green-700 mt-1">Enter the course name and par for each hole.</p>
       </div>
 
       <label className="flex flex-col gap-1">
@@ -125,12 +285,9 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1.5rem_2.5rem_1fr_1fr_1fr] gap-2 text-xs font-semibold text-green-700">
+      <div className="grid grid-cols-[1.5rem_2.5rem] gap-2 text-xs font-semibold text-green-700">
         <span className="text-left">#</span>
         <span className="text-left">Par</span>
-        <span className="text-center">Blue</span>
-        <span className="text-center">White</span>
-        <span className="text-center">Red</span>
       </div>
 
       {/* Hole rows */}
@@ -138,7 +295,7 @@ function CourseStep({
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[1.5rem_2.5rem_1fr_1fr_1fr] gap-2 items-center"
+            className="grid grid-cols-[1.5rem_2.5rem] gap-2 items-center"
           >
             <span className="text-sm font-bold text-green-900 text-left">
               {hole.hole_number}
@@ -152,27 +309,6 @@ function CourseStep({
               <option value={4}>4</option>
               <option value={5}>5</option>
             </select>
-            <input
-              type="number"
-              value={hole.yardage_blue}
-              onChange={(e) => updateHole(i, "yardage_blue", e.target.value)}
-              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Yds"
-            />
-            <input
-              type="number"
-              value={hole.yardage_white}
-              onChange={(e) => updateHole(i, "yardage_white", e.target.value)}
-              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Yds"
-            />
-            <input
-              type="number"
-              value={hole.yardage_red}
-              onChange={(e) => updateHole(i, "yardage_red", e.target.value)}
-              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Yds"
-            />
           </div>
         ))}
       </div>
@@ -199,6 +335,20 @@ function CourseStep({
 // ============================================
 // STEP 3: Teams & Players
 // ============================================
+type TeamForm = {
+  name: string
+  players: PlayerForm[]
+}
+
+function makeDefaultPlayers(): PlayerForm[] {
+  return [
+    { personId: null, displayName: "", handicap: "0", isCaptain: false },
+    { personId: null, displayName: "", handicap: "0", isCaptain: false },
+    { personId: null, displayName: "", handicap: "0", isCaptain: false },
+    { personId: null, displayName: "", handicap: "0", isCaptain: false },
+  ]
+}
+
 function TeamsStep({
   teams,
   setTeams,
@@ -206,29 +356,18 @@ function TeamsStep({
   onSave,
   saving,
 }: {
-  teams: { name: string; players: { name: string; handicap: string }[] }[]
-  setTeams: (t: typeof teams) => void
+  teams: TeamForm[]
+  setTeams: (t: TeamForm[]) => void
   onBack: () => void
   onSave: () => void
   saving: boolean
 }) {
   const addTeam = () => {
-    setTeams([
-      ...teams,
-      {
-        name: "",
-        players: [
-          { name: "", handicap: "0" },
-          { name: "", handicap: "0" },
-          { name: "", handicap: "0" },
-          { name: "", handicap: "0" },
-        ],
-      },
-    ])
+    setTeams([...teams, { name: "", players: makeDefaultPlayers() }])
   }
 
   const removeTeam = (teamIndex: number) => {
-    if (teams.length <= 2) return // Minimum 2 teams
+    if (teams.length <= 2) return
     setTeams(teams.filter((_, i) => i !== teamIndex))
   }
 
@@ -238,80 +377,100 @@ function TeamsStep({
     setTeams(updated)
   }
 
-  const updatePlayer = (teamIndex: number, playerIndex: number, field: string, value: string) => {
+  const updatePlayer = (
+    teamIndex: number,
+    playerIndex: number,
+    field: keyof PlayerForm,
+    value: string | boolean | null
+  ) => {
     const updated = [...teams]
     const players = [...updated[teamIndex].players]
-    players[playerIndex] = { ...players[playerIndex], [field]: value }
+
+    if (field === "isCaptain" && value === true) {
+      // Unset all other captains on this team first
+      players.forEach((p, i) => {
+        players[i] = { ...p, isCaptain: i === playerIndex }
+      })
+    } else {
+      players[playerIndex] = { ...players[playerIndex], [field]: value }
+    }
+
     updated[teamIndex] = { ...updated[teamIndex], players }
     setTeams(updated)
   }
 
+  // Collect all selected personIds across all teams to prevent duplicates
+  const allSelectedPersonIds = teams
+    .flatMap((t) => t.players.map((p) => p.personId))
+    .filter(Boolean) as string[]
+
   const allTeamsValid = teams.every(
-    (t) => t.name && t.players.every((p) => p.name)
+    (t) =>
+      t.name &&
+      t.players.every((p) => p.displayName.trim()) &&
+      t.players.some((p) => p.isCaptain)
   )
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-2xl font-bold text-green-900">Teams & Players</h2>
-        <p className="text-sm text-green-700 mt-1">Enter team names and 4 players per team. Handicaps are optional for now.</p>
+        <p className="text-sm text-green-700 mt-1">
+          Enter team names and 4 players per team. Mark one captain per team (C button). Tap a player name to search existing players.
+        </p>
       </div>
 
-      {teams.map((team, teamIndex) => (
-        <div key={teamIndex} className="rounded-xl border-2 border-green-200 bg-white p-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <label className="flex flex-col gap-1 flex-1">
-              <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">
-                Team {teamIndex + 1}
-              </span>
-              <input
-                type="text"
-                value={team.name}
-                onChange={(e) => updateTeamName(teamIndex, e.target.value)}
-                className="rounded-lg border border-green-300 px-4 py-3 text-base font-semibold bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder={`Team ${teamIndex + 1} name`}
-              />
-            </label>
-            {teams.length > 2 && (
-              <button
-                onClick={() => removeTeam(teamIndex)}
-                className="ml-3 mt-5 text-red-400 hover:text-red-600 text-sm font-medium"
-              >
-                Remove
-              </button>
-            )}
-          </div>
+      {teams.map((team, teamIndex) => {
+        const captainCount = team.players.filter((p) => p.isCaptain).length
+        const hasCaptain = captainCount === 1
 
-          {team.players.map((player, playerIndex) => (
-            <div key={playerIndex} className="grid grid-cols-[1fr_4.5rem] gap-2 items-end">
-              <label className="flex flex-col gap-1">
-                {playerIndex === 0 && (
-                  <span className="text-xs font-medium text-green-700">Player Name</span>
-                )}
+        return (
+          <div key={teamIndex} className="rounded-xl border-2 border-green-200 bg-white p-4 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <label className="flex flex-col gap-1 flex-1">
+                <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">
+                  Team {teamIndex + 1}
+                </span>
                 <input
                   type="text"
-                  value={player.name}
-                  onChange={(e) => updatePlayer(teamIndex, playerIndex, "name", e.target.value)}
-                  className="rounded-lg border border-green-300 px-3 py-2.5 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder={`Player ${playerIndex + 1}`}
+                  value={team.name}
+                  onChange={(e) => updateTeamName(teamIndex, e.target.value)}
+                  className="rounded-lg border border-green-300 px-4 py-3 text-base font-semibold bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder={`Team ${teamIndex + 1} name`}
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                {playerIndex === 0 && (
-                  <span className="text-xs font-medium text-green-700">HCP</span>
-                )}
-                <input
-                  type="number"
-                  value={player.handicap}
-                  onChange={(e) => updatePlayer(teamIndex, playerIndex, "handicap", e.target.value)}
-                  className="rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="0"
-                />
-              </label>
+              {teams.length > 2 && (
+                <button
+                  onClick={() => removeTeam(teamIndex)}
+                  className="ml-3 mt-5 text-red-400 hover:text-red-600 text-sm font-medium"
+                >
+                  Remove
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-      ))}
+
+            {!hasCaptain && team.players.some((p) => p.displayName.trim()) && (
+              <p className="text-xs text-amber-600 font-medium -mt-1">
+                Tap C on one player to mark them as captain.
+              </p>
+            )}
+
+            {team.players.map((player, playerIndex) => (
+              <PlayerInput
+                key={playerIndex}
+                player={player}
+                playerIndex={playerIndex}
+                onUpdate={(field, value) =>
+                  updatePlayer(teamIndex, playerIndex, field, value)
+                }
+                excludePersonIds={allSelectedPersonIds.filter(
+                  (id) => id !== player.personId
+                )}
+              />
+            ))}
+          </div>
+        )
+      })}
 
       {teams.length < 4 && (
         <button
@@ -393,35 +552,15 @@ export default function SetupPage() {
     Array.from({ length: 18 }, (_, i) => ({
       hole_number: i + 1,
       par: 4,
-      yardage_white: "",
-      yardage_blue: "",
-      yardage_red: "",
     }))
   )
 
   // Step 3: Teams & players
-  const [teams, setTeams] = useState([
-    {
-      name: "",
-      players: [
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-      ],
-    },
-    {
-      name: "",
-      players: [
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-        { name: "", handicap: "0" },
-      ],
-    },
+  const [teams, setTeams] = useState<TeamForm[]>([
+    { name: "", players: makeDefaultPlayers() },
+    { name: "", players: makeDefaultPlayers() },
   ])
 
-  // Save everything to Supabase
   const handleSave = async () => {
     setSaving(true)
     setError(null)
@@ -441,9 +580,6 @@ export default function SetupPage() {
         course_id: courseData.id,
         hole_number: h.hole_number,
         par: h.par,
-        yardage_white: h.yardage_white ? parseInt(h.yardage_white) : null,
-        yardage_blue: h.yardage_blue ? parseInt(h.yardage_blue) : null,
-        yardage_red: h.yardage_red ? parseInt(h.yardage_red) : null,
       }))
 
       const { error: holesError } = await supabase.from("holes").insert(holesData)
@@ -464,7 +600,7 @@ export default function SetupPage() {
 
       if (tournamentError) throw new Error("Failed to save tournament: " + tournamentError.message)
 
-      // 4. Create the 3 round settings (these are always the same format/tee combo)
+      // 4. Create round settings
       const roundSettings = [
         { tournament_id: tournamentData.id, round_number: 1, format: "best_ball_stableford", tee_box: "white" },
         { tournament_id: tournamentData.id, round_number: 2, format: "skins", tee_box: "blue" },
@@ -474,31 +610,48 @@ export default function SetupPage() {
       const { error: roundsError } = await supabase.from("round_settings").insert(roundSettings)
       if (roundsError) throw new Error("Failed to save round settings: " + roundsError.message)
 
-      // 5. Create teams and players
+      // 5. Create teams, find/create people, and create tournament_players
       for (let i = 0; i < teams.length; i++) {
         const team = teams[i]
 
         const { data: teamData, error: teamError } = await supabase
           .from("teams")
-          .insert({
-            tournament_id: tournamentData.id,
-            name: team.name,
-            sort_order: i,
-          })
+          .insert({ tournament_id: tournamentData.id, name: team.name, sort_order: i })
           .select()
           .single()
 
         if (teamError) throw new Error("Failed to save team: " + teamError.message)
 
-        const playersData = team.players.map((p, j) => ({
-          team_id: teamData.id,
-          name: p.name,
-          handicap: parseInt(p.handicap) || 0,
-          sort_order: j,
-        }))
+        for (let j = 0; j < team.players.length; j++) {
+          const player = team.players[j]
+          let personId = player.personId
 
-        const { error: playersError } = await supabase.from("players").insert(playersData)
-        if (playersError) throw new Error("Failed to save players: " + playersError.message)
+          // If no existing person was selected, create a new people record
+          if (!personId) {
+            const { data: newPerson, error: personError } = await supabase
+              .from("people")
+              .insert({ display_name: player.displayName.trim() })
+              .select()
+              .single()
+
+            if (personError) throw new Error("Failed to save person: " + personError.message)
+            personId = newPerson.id
+          }
+
+          // Create the tournament_players row linking person → team → tournament
+          const { error: tpError } = await supabase
+            .from("tournament_players")
+            .insert({
+              person_id: personId,
+              tournament_id: tournamentData.id,
+              team_id: teamData.id,
+              handicap: parseInt(player.handicap) || null,
+              is_captain: player.isCaptain,
+              sort_order: j,
+            })
+
+          if (tpError) throw new Error("Failed to save player: " + tpError.message)
+        }
       }
 
       setSavedTournamentId(tournamentData.id)
@@ -510,7 +663,6 @@ export default function SetupPage() {
     }
   }
 
-  // If we already saved, show the success screen
   if (savedTournamentId) {
     return (
       <div className="flex flex-col flex-1 bg-green-50 px-4 py-6">
@@ -540,11 +692,7 @@ export default function SetupPage() {
                 {s < step ? "\u2713" : s}
               </div>
               {s < 3 && (
-                <div
-                  className={`w-12 h-0.5 ${
-                    s < step ? "bg-green-500" : "bg-green-200"
-                  }`}
-                />
+                <div className={`w-12 h-0.5 ${s < step ? "bg-green-500" : "bg-green-200"}`} />
               )}
             </div>
           ))}
@@ -588,3 +736,4 @@ export default function SetupPage() {
     </div>
   )
 }
+

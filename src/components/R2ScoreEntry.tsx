@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase"
 import { calculateSkins, scoreLabel } from "@/lib/scoring"
 
 type Player = { id: string; name: string; team_id: string; team_name: string }
-type Hole = { hole_number: number; par: number; yardage_blue: number | null }
+type Hole = { hole_number: number; par: number }
 
 type Foursome = {
   groupNumber: number
@@ -51,16 +51,16 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
       if (tournament?.course_id) {
         const { data: holesData } = await supabase
           .from("holes")
-          .select("hole_number, par, yardage_blue")
+          .select("hole_number, par")
           .eq("course_id", tournament.course_id)
           .order("hole_number")
         setHoles(holesData || [])
       }
 
-      // Fetch R2 pairings with player and team info
+      // Fetch R2 pairings with tournament_player and team info
       const { data: pairings } = await supabase
         .from("r2_pairings")
-        .select("group_number, player_id, players(id, name, team_id, teams(name))")
+        .select("group_number, player_id, tournament_players(id, team_id, people(display_name), teams(name))")
         .eq("tournament_id", tournamentId)
         .order("group_number")
 
@@ -70,13 +70,14 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
         pairings.forEach((p: Record<string, unknown>) => {
           const gn = p.group_number as number
           if (!groupMap[gn]) groupMap[gn] = []
-          const playerData = p.players as Record<string, unknown>
-          if (playerData) {
-            const teamData = playerData.teams as Record<string, unknown>
+          const tpData = p.tournament_players as Record<string, unknown>
+          if (tpData) {
+            const peopleData = tpData.people as Record<string, unknown>
+            const teamData = tpData.teams as Record<string, unknown>
             groupMap[gn].push({
-              id: playerData.id as string,
-              name: playerData.name as string,
-              team_id: playerData.team_id as string,
+              id: p.player_id as string,
+              name: peopleData ? (peopleData.display_name as string) : "",
+              team_id: tpData.team_id as string,
               team_name: teamData ? (teamData.name as string) : "",
             })
           }
@@ -409,7 +410,6 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
             </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
-              {hole.yardage_blue && <span>{hole.yardage_blue} yds</span>}
             </div>
           </div>
 

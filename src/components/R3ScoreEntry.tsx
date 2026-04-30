@@ -7,7 +7,7 @@ import { adjustedStablefordPoints, round3TotalPoints, scoreLabel } from "@/lib/s
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number; yardage_red: number | null }
+type Hole = { hole_number: number; par: number }
 
 type Props = {
   tournamentId: string
@@ -39,7 +39,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
       if (tournament?.course_id) {
         const { data: holesData } = await supabase
           .from("holes")
-          .select("hole_number, par, yardage_red")
+          .select("hole_number, par")
           .eq("course_id", tournament.course_id)
           .order("hole_number")
         setHoles(holesData || [])
@@ -310,7 +310,6 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
             </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
-              {hole.yardage_red && <span>{hole.yardage_red} yds</span>}
             </div>
           </div>
 
