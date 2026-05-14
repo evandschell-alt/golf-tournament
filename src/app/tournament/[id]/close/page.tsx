@@ -31,6 +31,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -193,13 +194,35 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
             <p className="text-sm text-red-600 text-center px-2">{error}</p>
           )}
 
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full rounded-xl bg-green-700 py-4 text-base font-semibold text-white text-center shadow-sm hover:bg-green-800 disabled:opacity-50 transition-colors"
-          >
-            {submitting ? "Closing SuperDay..." : "Close SuperDay"}
-          </button>
+          {!showConfirm ? (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="w-full rounded-xl bg-green-700 py-4 text-base font-semibold text-white text-center shadow-sm hover:bg-green-800 transition-colors"
+            >
+              Close SuperDay
+            </button>
+          ) : (
+            <div className="rounded-xl bg-red-50 border-2 border-red-300 p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold text-red-800 text-center">
+                Are you sure? This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="flex-1 rounded-xl border-2 border-green-700 py-3 text-sm font-semibold text-green-700 transition-colors"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? "Closing..." : "Yes, Close It"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             onClick={() => router.back()}

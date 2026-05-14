@@ -231,7 +231,9 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         const holePlayers = playerIds.map((pid) => {
           const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
           const player = allPlayers.find((p) => p.id === pid)
-          return { playerId: pid, teamId: player?.team_id || "", strokes: score?.strokes || 0 }
+          const raw = score?.strokes || 0
+          const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          return { playerId: pid, teamId: player?.team_id || "", strokes: adjusted }
         })
         if (holePlayers.every((p) => p.strokes > 0)) {
           foursomeHoles.push({ holeNumber: hole.hole_number, players: holePlayers })
@@ -319,7 +321,9 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         const holePlayers = playerIds.map((pid) => {
           const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
           const player = allPlayers.find((p) => p.id === pid)
-          return { playerId: pid, teamId: player?.team_id || "", strokes: score?.strokes || 0 }
+          const raw = score?.strokes || 0
+          const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          return { playerId: pid, teamId: player?.team_id || "", strokes: adjusted }
         })
         if (holePlayers.every((p) => p.strokes > 0)) {
           foursomeHoles.push({ holeNumber: hole.hole_number, players: holePlayers })

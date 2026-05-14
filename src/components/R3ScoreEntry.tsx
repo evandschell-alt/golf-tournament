@@ -405,10 +405,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
           <div className="flex gap-3 mt-2 pb-4">
             <button
               onClick={() => {
-                if (currentHole > 1) {
-                  unsaveHoleScores(currentHole)
-                  setCurrentHole(currentHole - 1)
-                }
+                if (currentHole > 1) setCurrentHole(currentHole - 1)
               }}
               disabled={currentHole === 1}
               className="flex-1 rounded-xl border-2 border-green-700 py-3 text-sm font-semibold text-green-700 disabled:opacity-30 transition-colors"
