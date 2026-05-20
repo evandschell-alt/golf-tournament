@@ -70,10 +70,10 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
 
     if (photo) {
       const ext = photo.name.split(".").pop() || "jpg"
-      const path = `winners/${tournamentId}/winner.${ext}`
+      const path = `winners/${tournamentId}/winner-${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from("tournament-photos")
-        .upload(path, photo, { upsert: true, contentType: photo.type || "image/jpeg" })
+        .upload(path, photo, { contentType: photo.type || "image/jpeg" })
 
       if (uploadError) {
         console.error("Supabase upload error:", uploadError)
