@@ -69,24 +69,21 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
     let photoUrl: string | null = null
 
     if (photo) {
-      const ext = photo.name.split(".").pop() || "jpg"
-      const path = `winners/${tournamentId}/winner-${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from("tournament-photos")
-        .upload(path, photo, { contentType: photo.type || "image/jpeg" })
+      const formData = new FormData()
+      formData.append("file", photo)
+      formData.append("tournamentId", tournamentId)
 
-      if (uploadError) {
-        console.error("Supabase upload error:", uploadError)
-        setError(`Photo upload failed: ${uploadError.message}`)
+      const res = await fetch("/api/upload-photo", { method: "POST", body: formData })
+      const json = await res.json()
+
+      if (!res.ok) {
+        console.error("Upload error:", json.error)
+        setError(`Photo upload failed: ${json.error}`)
         setSubmitting(false)
         return
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("tournament-photos")
-        .getPublicUrl(path)
-
-      photoUrl = publicUrl
+      photoUrl = json.publicUrl
     }
 
     const { error: updateError } = await supabase
