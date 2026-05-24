@@ -813,7 +813,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               }
 
               return (
-                <div className="flex flex-col gap-1 py-2 px-3">
+                <div className="flex flex-col gap-1 py-2 px-1">
                   {foursomes.map((f) => {
                     const gKey = f.groupNumber
                     const nine = activeNine[20 + gKey] || "front"
@@ -860,10 +860,10 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                                 className="flex transition-transform duration-300 ease-out"
                                 style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
                               >
-                                <div className="w-full flex-shrink-0 px-3 py-2">
+                                <div className="w-full flex-shrink-0 px-1 py-2">
                                   {renderR2Table(front9, f)}
                                 </div>
-                                <div className="w-full flex-shrink-0 px-3 py-2">
+                                <div className="w-full flex-shrink-0 px-1 py-2">
                                   {renderR2Table(back9, f, holes)}
                                 </div>
                               </div>
