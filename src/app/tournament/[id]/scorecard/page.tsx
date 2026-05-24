@@ -745,7 +745,11 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
                           return teamGroups.map((group, gIdx) => {
                             const isOurTeam = group.teamId === selectedTeam!.id
-                            const teamTotal = foursome.allTeamSkins[group.teamId] || 0
+                            let teamTotal = 0
+                            for (const h of totHoles) {
+                              const result = foursome.holeResults[h.hole_number]
+                              if (result?.winner?.teamId === group.teamId) teamTotal += result.skinsWon
+                            }
                             const teamName = teams.find((t) => t.id === group.teamId)?.name || "Team"
                             const isLastGroup = gIdx === teamGroups.length - 1
 
