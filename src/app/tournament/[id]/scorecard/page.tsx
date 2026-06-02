@@ -489,7 +489,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           </thead>
           <tbody>
             {/* Par row */}
-            <tr className="bg-green-50 border-b-2 border-green-200">
+            <tr className="bg-green-50">
               <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
               {holeRange.map((h) => (
                 <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
@@ -498,6 +498,17 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 {totHoles.reduce((s, h) => s + h.par, 0)}
               </td>
             </tr>
+            {/* Stroke index row */}
+            {handicapsActive && (
+              <tr className="bg-green-50 border-b-2 border-green-200">
+                <td className="px-2 py-1 text-[10px] text-blue-500 font-medium sticky left-0 bg-green-50">HCP</td>
+                {holeRange.map((h) => (
+                  <td key={h.hole_number} className="px-1 py-1 text-[10px] text-blue-500 text-center">{h.stroke_index ?? "–"}</td>
+                ))}
+                <td className="px-2 py-1 text-[10px] text-blue-500 text-center"></td>
+              </tr>
+            )}
+            {!handicapsActive && <tr className="border-b-2 border-green-200"><td colSpan={holeRange.length + 2}></td></tr>}
             {/* Player score rows */}
             {playerRows.map((player, i) => {
               // Compute total from totHoles (all 18 on back 9 view, front 9 on front 9 view)
@@ -671,33 +682,31 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
-      {/* Gross/Net toggle — only when handicaps are enabled */}
-      {handicapsActive && (
-        <div className="bg-white border-b border-green-200 px-4 py-2">
-          <div className="max-w-md mx-auto flex gap-2 justify-center">
-            <button
-              onClick={() => setShowNet(false)}
-              className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
-                !showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-              }`}
-            >
-              Gross
-            </button>
-            <button
-              onClick={() => setShowNet(true)}
-              className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
-                showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-              }`}
-            >
-              Net
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Round sections */}
       <div className="flex-1 px-4 py-4">
         <div className="max-w-md mx-auto flex flex-col gap-3">
+
+          {/* Gross/Net toggle — only when handicaps are enabled */}
+          {handicapsActive && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => setShowNet(false)}
+                className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
+                  !showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                }`}
+              >
+                Gross
+              </button>
+              <button
+                onClick={() => setShowNet(true)}
+                className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
+                  showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                }`}
+              >
+                Net
+              </button>
+            </div>
+          )}
 
           {/* ===== ROUND 1: BEST BALL ===== */}
           <div className="rounded-xl bg-white border border-green-200 overflow-hidden">
@@ -788,7 +797,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="bg-green-50 border-b-2 border-green-200">
+                        <tr className="bg-green-50">
                           <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
                           {holeRange.map((h) => (
                             <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
@@ -797,6 +806,16 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                             {totHoles.reduce((s, h) => s + h.par, 0)}
                           </td>
                         </tr>
+                        {handicapsActive && (
+                          <tr className="bg-green-50 border-b-2 border-green-200">
+                            <td className="px-2 py-1 text-[10px] text-blue-500 font-medium sticky left-0 bg-green-50">HCP</td>
+                            {holeRange.map((h) => (
+                              <td key={h.hole_number} className="px-1 py-1 text-[10px] text-blue-500 text-center">{h.stroke_index ?? "–"}</td>
+                            ))}
+                            <td className="px-2 py-1 text-[10px] text-blue-500 text-center"></td>
+                          </tr>
+                        )}
+                        {!handicapsActive && <tr className="border-b-2 border-green-200"><td colSpan={holeRange.length + 2}></td></tr>}
                         {(() => {
                           // Group consecutive players by teamId (players are pre-sorted by team name)
                           const teamGroups: { teamId: string; players: typeof foursome.players }[] = []

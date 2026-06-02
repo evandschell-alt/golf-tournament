@@ -339,14 +339,14 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
 
                   {draftHoles.length > 0 && (
                     <div>
-                      <div className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 text-xs font-semibold text-green-700 mb-1.5">
+                      <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700 mb-1.5">
                         <span>#</span>
                         <span>Par</span>
                         <span>HCP</span>
                       </div>
                       <div className="flex flex-col gap-1">
                         {draftHoles.map((hole, i) => (
-                          <div key={hole.id} className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 items-center">
+                          <div key={hole.id} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
                             <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
                             <select
                               value={hole.par}
@@ -517,21 +517,32 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
               </>
             ) : (
               <div className="flex flex-col gap-3">
-                {teams.map((team) => (
-                  <div key={team.id} className="border-b border-green-50 last:border-0 pb-2 last:pb-0">
-                    <p className="text-sm font-bold text-green-900 mb-1">{team.name}</p>
-                    <div className="flex flex-col gap-0.5">
-                      {team.players.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between">
-                          <span className="text-xs text-green-700">{p.name}</span>
-                          {p.handicap !== null && (
-                            <span className="text-xs text-green-500">HCP {p.handicap}</span>
-                          )}
-                        </div>
-                      ))}
+                {teams.map((team) => {
+                  const hcps = team.players.map((p) => p.handicap ?? 0)
+                  const avgHcp = hcps.length > 0 ? Math.round(hcps.reduce((a, b) => a + b, 0) / hcps.length) : null
+                  return (
+                    <div key={team.id} className="border-b border-green-50 last:border-0 pb-2 last:pb-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-bold text-green-900">{team.name}</p>
+                        {useHandicaps && avgHcp !== null && (
+                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                            Avg HCP {avgHcp}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        {team.players.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between">
+                            <span className="text-xs text-green-700">{p.name}</span>
+                            {p.handicap !== null && (
+                              <span className="text-xs text-green-500">HCP {p.handicap}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

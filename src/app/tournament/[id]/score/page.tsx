@@ -714,6 +714,9 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
+              {handicapsActive && hole.stroke_index && (
+                <span className="text-blue-600">HCP {hole.stroke_index}</span>
+              )}
             </div>
           </div>
 

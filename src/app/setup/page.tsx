@@ -272,11 +272,12 @@ function CourseStep({
 
   const allParsEntered = holes.every((h) => h.par >= 3 && h.par <= 6)
 
-  const strokeIndexes = holes.map((h) => h.stroke_index)
+  const strokeIndexes = holes.map((h) => h.stroke_index).filter((si) => si > 0)
   const strokeIndexValid =
+    strokeIndexes.length === 18 &&
     new Set(strokeIndexes).size === 18 &&
     strokeIndexes.every((si) => si >= 1 && si <= 18)
-  const hasDuplicateStrokeIndex = new Set(strokeIndexes).size < 18
+  const hasDuplicateStrokeIndex = new Set(strokeIndexes).size < strokeIndexes.length
 
   const canProceed = courseName && allParsEntered && (!useHandicaps || strokeIndexValid)
 
@@ -299,7 +300,7 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 text-xs font-semibold text-green-700">
+      <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700">
         <span className="text-left">#</span>
         <span className="text-left">Par</span>
         <span className="text-left">HCP</span>
@@ -310,7 +311,7 @@ function CourseStep({
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 items-center"
+            className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center"
           >
             <span className="text-sm font-bold text-green-900 text-left">
               {hole.hole_number}
@@ -325,10 +326,11 @@ function CourseStep({
               <option value={5}>5</option>
             </select>
             <select
-              value={hole.stroke_index}
-              onChange={(e) => updateHole(i, "stroke_index", parseInt(e.target.value))}
+              value={hole.stroke_index || ""}
+              onChange={(e) => updateHole(i, "stroke_index", e.target.value === "" ? 0 : parseInt(e.target.value))}
               className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
+              <option value="">—</option>
               {Array.from({ length: 18 }, (_, n) => (
                 <option key={n + 1} value={n + 1}>
                   {n + 1}
@@ -374,10 +376,10 @@ type TeamForm = {
 
 function makeDefaultPlayers(): PlayerForm[] {
   return [
-    { personId: null, displayName: "", handicap: "0", isCaptain: false },
-    { personId: null, displayName: "", handicap: "0", isCaptain: false },
-    { personId: null, displayName: "", handicap: "0", isCaptain: false },
-    { personId: null, displayName: "", handicap: "0", isCaptain: false },
+    { personId: null, displayName: "", handicap: "", isCaptain: false },
+    { personId: null, displayName: "", handicap: "", isCaptain: false },
+    { personId: null, displayName: "", handicap: "", isCaptain: false },
+    { personId: null, displayName: "", handicap: "", isCaptain: false },
   ]
 }
 
@@ -597,7 +599,7 @@ function SetupContent() {
     Array.from({ length: 18 }, (_, i) => ({
       hole_number: i + 1,
       par: 4,
-      stroke_index: i + 1,
+      stroke_index: 0,
     }))
   )
 
@@ -626,7 +628,7 @@ function SetupContent() {
         course_id: courseData.id,
         hole_number: h.hole_number,
         par: h.par,
-        stroke_index: h.stroke_index,
+        stroke_index: h.stroke_index > 0 ? h.stroke_index : null,
       }))
 
       const { error: holesError } = await supabase.from("holes").insert(holesData)
