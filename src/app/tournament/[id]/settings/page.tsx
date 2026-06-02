@@ -68,7 +68,7 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  type HoleRow = { id: string; hole_number: number; par: number; stroke_index: number | null }
+  type HoleRow = { id: string; hole_number: number; par: number; stroke_index: number | null; par_red: number | null; stroke_index_red: number | null }
 
   // Raw data
   const [tournamentRaw, setTournamentRaw] = useState({ name: "", year: 0, date: "" })
@@ -109,7 +109,7 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
 
           const { data: holesData } = await supabase
             .from("holes")
-            .select("id, hole_number, par, stroke_index")
+            .select("id, hole_number, par, stroke_index, par_red, stroke_index_red")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
           if (holesData) setHolesRaw(holesData)
@@ -171,7 +171,7 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
     }
     for (const hole of draftHoles) {
       await supabase.from("holes")
-        .update({ par: hole.par, stroke_index: hole.stroke_index })
+        .update({ par: hole.par, stroke_index: hole.stroke_index, par_red: hole.par_red, stroke_index_red: hole.stroke_index_red })
         .eq("id", hole.id)
     }
     setCourse({ name: draftCourse })
@@ -338,57 +338,115 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
                   />
 
                   {draftHoles.length > 0 && (
-                    <div>
-                      <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700 mb-1.5">
-                        <span>#</span>
-                        <span>Par</span>
-                        <span>HCP</span>
+                    <>
+                      {/* White/Blue tees (R1 & R2) */}
+                      <div>
+                        <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1.5">White / Blue Tees (R1 & R2)</p>
+                        <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700 mb-1">
+                          <span>#</span>
+                          <span>Par</span>
+                          <span>HCP</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {draftHoles.map((hole, i) => (
+                            <div key={hole.id} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
+                              <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
+                              <select
+                                value={hole.par}
+                                onChange={(e) => {
+                                  const updated = [...draftHoles]
+                                  updated[i] = { ...updated[i], par: parseInt(e.target.value) }
+                                  setDraftHoles(updated)
+                                }}
+                                className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              >
+                                <option value={3}>3</option>
+                                <option value={4}>4</option>
+                                <option value={5}>5</option>
+                              </select>
+                              <select
+                                value={hole.stroke_index ?? ""}
+                                onChange={(e) => {
+                                  const updated = [...draftHoles]
+                                  updated[i] = { ...updated[i], stroke_index: e.target.value === "" ? null : parseInt(e.target.value) }
+                                  setDraftHoles(updated)
+                                }}
+                                className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              >
+                                <option value="">—</option>
+                                {Array.from({ length: 18 }, (_, n) => (
+                                  <option key={n + 1} value={n + 1}>{n + 1}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        {useHandicaps && (() => {
+                          const indexes = draftHoles.map((h) => h.stroke_index).filter((si): si is number => si !== null)
+                          const hasDupes = new Set(indexes).size < indexes.length
+                          const incomplete = indexes.length < 18
+                          return (hasDupes || incomplete) ? (
+                            <p className="text-sm text-red-600 mt-2">
+                              {hasDupes ? "Each HCP value must be unique." : "All holes need an HCP value for handicap scoring."}
+                            </p>
+                          ) : null
+                        })()}
                       </div>
-                      <div className="flex flex-col gap-1">
-                        {draftHoles.map((hole, i) => (
-                          <div key={hole.id} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
-                            <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
-                            <select
-                              value={hole.par}
-                              onChange={(e) => {
-                                const updated = [...draftHoles]
-                                updated[i] = { ...updated[i], par: parseInt(e.target.value) }
-                                setDraftHoles(updated)
-                              }}
-                              className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            >
-                              <option value={3}>3</option>
-                              <option value={4}>4</option>
-                              <option value={5}>5</option>
-                            </select>
-                            <select
-                              value={hole.stroke_index ?? ""}
-                              onChange={(e) => {
-                                const updated = [...draftHoles]
-                                updated[i] = { ...updated[i], stroke_index: e.target.value === "" ? null : parseInt(e.target.value) }
-                                setDraftHoles(updated)
-                              }}
-                              className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            >
-                              <option value="">—</option>
-                              {Array.from({ length: 18 }, (_, n) => (
-                                <option key={n + 1} value={n + 1}>{n + 1}</option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
+
+                      {/* Red tees (R3 Scramble) */}
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-1.5">Red Tees (R3 Scramble)</p>
+                        <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-red-400 mb-1">
+                          <span>#</span>
+                          <span>Par</span>
+                          <span>HCP</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {draftHoles.map((hole, i) => (
+                            <div key={hole.id} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
+                              <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
+                              <select
+                                value={hole.par_red ?? 4}
+                                onChange={(e) => {
+                                  const updated = [...draftHoles]
+                                  updated[i] = { ...updated[i], par_red: parseInt(e.target.value) }
+                                  setDraftHoles(updated)
+                                }}
+                                className="w-full rounded-lg border border-red-200 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                              >
+                                <option value={3}>3</option>
+                                <option value={4}>4</option>
+                                <option value={5}>5</option>
+                              </select>
+                              <select
+                                value={hole.stroke_index_red ?? ""}
+                                onChange={(e) => {
+                                  const updated = [...draftHoles]
+                                  updated[i] = { ...updated[i], stroke_index_red: e.target.value === "" ? null : parseInt(e.target.value) }
+                                  setDraftHoles(updated)
+                                }}
+                                className="w-full rounded-lg border border-red-200 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                              >
+                                <option value="">—</option>
+                                {Array.from({ length: 18 }, (_, n) => (
+                                  <option key={n + 1} value={n + 1}>{n + 1}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        {useHandicaps && (() => {
+                          const indexes = draftHoles.map((h) => h.stroke_index_red).filter((si): si is number => si !== null)
+                          const hasDupes = new Set(indexes).size < indexes.length
+                          const incomplete = indexes.length < 18
+                          return (hasDupes || incomplete) ? (
+                            <p className="text-sm text-red-600 mt-2">
+                              {hasDupes ? "Each red tee HCP value must be unique." : "All holes need a red tee HCP value."}
+                            </p>
+                          ) : null
+                        })()}
                       </div>
-                      {useHandicaps && (() => {
-                        const indexes = draftHoles.map((h) => h.stroke_index).filter((si): si is number => si !== null)
-                        const hasDupes = new Set(indexes).size < indexes.length
-                        const incomplete = indexes.length < 18
-                        return (hasDupes || incomplete) ? (
-                          <p className="text-sm text-red-600 mt-2">
-                            {hasDupes ? "Each HCP value must be unique." : "All holes need an HCP value for handicap scoring."}
-                          </p>
-                        ) : null
-                      })()}
-                    </div>
+                    </>
                   )}
 
                   <SaveCancelRow onSave={saveCourse} onCancel={() => setEditingSection(null)} saving={saving} />

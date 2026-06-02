@@ -258,7 +258,7 @@ function CourseStep({
 }: {
   courseName: string
   setCourseName: (n: string) => void
-  holes: { hole_number: number; par: number; stroke_index: number }[]
+  holes: { hole_number: number; par: number; stroke_index: number; par_red: number; stroke_index_red: number }[]
   setHoles: (h: typeof holes) => void
   useHandicaps: boolean
   onNext: () => void
@@ -279,7 +279,16 @@ function CourseStep({
     strokeIndexes.every((si) => si >= 1 && si <= 18)
   const hasDuplicateStrokeIndex = new Set(strokeIndexes).size < strokeIndexes.length
 
-  const canProceed = courseName && allParsEntered && (!useHandicaps || strokeIndexValid)
+  const strokeIndexesRed = holes.map((h) => h.stroke_index_red).filter((si) => si > 0)
+  const strokeIndexRedValid =
+    strokeIndexesRed.length === 18 &&
+    new Set(strokeIndexesRed).size === 18 &&
+    strokeIndexesRed.every((si) => si >= 1 && si <= 18)
+  const hasDuplicateStrokeIndexRed = new Set(strokeIndexesRed).size < strokeIndexesRed.length
+
+  const allRedParsEntered = holes.every((h) => h.par_red >= 3 && h.par_red <= 6)
+
+  const canProceed = courseName && allParsEntered && allRedParsEntered && (!useHandicaps || (strokeIndexValid && strokeIndexRedValid))
 
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
@@ -299,53 +308,83 @@ function CourseStep({
         />
       </label>
 
-      {/* Header row */}
-      <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700">
-        <span className="text-left">#</span>
-        <span className="text-left">Par</span>
-        <span className="text-left">HCP</span>
+      {/* Section: White/Blue Tees (R1 & R2) */}
+      <div>
+        <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">White / Blue Tees (R1 & R2)</p>
+        <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-green-700 mb-1">
+          <span>#</span>
+          <span>Par</span>
+          <span>HCP</span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {holes.map((hole, i) => (
+            <div key={hole.hole_number} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
+              <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
+              <select
+                value={hole.par}
+                onChange={(e) => updateHole(i, "par", parseInt(e.target.value))}
+                className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+              <select
+                value={hole.stroke_index || ""}
+                onChange={(e) => updateHole(i, "stroke_index", e.target.value === "" ? 0 : parseInt(e.target.value))}
+                className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">—</option>
+                {Array.from({ length: 18 }, (_, n) => (
+                  <option key={n + 1} value={n + 1}>{n + 1}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+        {useHandicaps && hasDuplicateStrokeIndex && (
+          <p className="text-sm text-red-600 mt-1">Each HCP value (1–18) must be used exactly once.</p>
+        )}
       </div>
 
-      {/* Hole rows */}
-      <div className="flex flex-col gap-1.5">
-        {holes.map((hole, i) => (
-          <div
-            key={hole.hole_number}
-            className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center"
-          >
-            <span className="text-sm font-bold text-green-900 text-left">
-              {hole.hole_number}
-            </span>
-            <select
-              value={hole.par}
-              onChange={(e) => updateHole(i, "par", parseInt(e.target.value))}
-              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value={3}>3</option>
-              <option value={4}>4</option>
-              <option value={5}>5</option>
-            </select>
-            <select
-              value={hole.stroke_index || ""}
-              onChange={(e) => updateHole(i, "stroke_index", e.target.value === "" ? 0 : parseInt(e.target.value))}
-              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">—</option>
-              {Array.from({ length: 18 }, (_, n) => (
-                <option key={n + 1} value={n + 1}>
-                  {n + 1}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
+      {/* Section: Red Tees (R3 Scramble) */}
+      <div>
+        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Red Tees (R3 Scramble)</p>
+        <div className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 text-xs font-semibold text-red-400 mb-1">
+          <span>#</span>
+          <span>Par</span>
+          <span>HCP</span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {holes.map((hole, i) => (
+            <div key={hole.hole_number} className="grid grid-cols-[1.5rem_1fr_1fr] gap-3 items-center">
+              <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
+              <select
+                value={hole.par_red}
+                onChange={(e) => updateHole(i, "par_red", parseInt(e.target.value))}
+                className="w-full rounded-lg border border-red-200 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+              >
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+              <select
+                value={hole.stroke_index_red || ""}
+                onChange={(e) => updateHole(i, "stroke_index_red", e.target.value === "" ? 0 : parseInt(e.target.value))}
+                className="w-full rounded-lg border border-red-200 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+              >
+                <option value="">—</option>
+                {Array.from({ length: 18 }, (_, n) => (
+                  <option key={n + 1} value={n + 1}>{n + 1}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+        {useHandicaps && hasDuplicateStrokeIndexRed && (
+          <p className="text-sm text-red-600 mt-1">Each red tee HCP value (1–18) must be used exactly once.</p>
+        )}
       </div>
-
-      {useHandicaps && hasDuplicateStrokeIndex && (
-        <p className="text-sm text-red-600">
-          Each HCP value (1–18) must be used exactly once. Check for duplicates.
-        </p>
-      )}
 
       <div className="flex gap-3">
         <button
@@ -600,6 +639,8 @@ function SetupContent() {
       hole_number: i + 1,
       par: 4,
       stroke_index: 0,
+      par_red: 4,
+      stroke_index_red: 0,
     }))
   )
 
@@ -629,6 +670,8 @@ function SetupContent() {
         hole_number: h.hole_number,
         par: h.par,
         stroke_index: h.stroke_index > 0 ? h.stroke_index : null,
+        par_red: h.par_red,
+        stroke_index_red: h.stroke_index_red > 0 ? h.stroke_index_red : null,
       }))
 
       const { error: holesError } = await supabase.from("holes").insert(holesData)

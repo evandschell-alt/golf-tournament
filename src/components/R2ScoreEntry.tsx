@@ -441,6 +441,9 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
             </div>
             <div className="flex gap-3 text-sm text-green-600">
               <span>Par {hole.par}</span>
+              {handicapsActive && hole.stroke_index && (
+                <span className="text-blue-600">HCP {hole.stroke_index}</span>
+              )}
             </div>
           </div>
 

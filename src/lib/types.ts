@@ -14,6 +14,8 @@ export type Hole = {
   hole_number: number
   par: number
   stroke_index: number | null
+  par_red: number | null
+  stroke_index_red: number | null
 }
 
 export type Tournament = {

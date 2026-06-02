@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
 type Player = { id: string; team_id: string; handicap: number | null }
-type Hole = { hole_number: number; par: number; stroke_index: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null; par_red: number | null; stroke_index_red: number | null }
 type R2Pairing = { group_number: number; player_id: string }
 type ScoreRow = {
   team_id: string
@@ -197,8 +197,9 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
           holesData.forEach((hole) => {
             const strokes = r3HoleScores[hole.hole_number]
             if (strokes && strokes > 0) {
-              const net = hcpActive ? getNetScore(strokes, r3StrokeMap, hole.stroke_index) : strokes
-              round3Points += adjustedStablefordPoints(net, hole.par)
+              const redPar = hole.par_red ?? hole.par
+              const net = hcpActive ? getNetScore(strokes, r3StrokeMap, hole.stroke_index_red) : strokes
+              round3Points += adjustedStablefordPoints(net, redPar)
               round3Completed++
             }
           })
@@ -242,7 +243,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       if (tournament.course_id) {
         const { data } = await supabase
           .from("holes")
-          .select("hole_number, par, stroke_index")
+          .select("hole_number, par, stroke_index, par_red, stroke_index_red")
           .eq("course_id", tournament.course_id)
           .order("hole_number")
         holesData = data || []

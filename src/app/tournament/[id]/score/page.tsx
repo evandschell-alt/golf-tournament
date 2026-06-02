@@ -10,7 +10,7 @@ import R3ScoreEntry from "@/components/R3ScoreEntry"
 
 type Player = { id: string; name: string; sort_order: number; handicap: number | null }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number; stroke_index: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null; par_red: number | null; stroke_index_red: number | null }
 
 type HoleScores = {
   [playerId: string]: {
@@ -103,7 +103,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par, stroke_index")
+            .select("hole_number, par, stroke_index, par_red, stroke_index_red")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
 
@@ -500,8 +500,9 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       holes.forEach((hole) => {
         const strokes = r3HoleScores[hole.hole_number]
         if (strokes && strokes > 0) {
-          const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, hole.stroke_index) : strokes
-          pts += adjustedStablefordPoints(net, hole.par)
+          const redPar = hole.par_red ?? hole.par
+          const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, hole.stroke_index_red) : strokes
+          pts += adjustedStablefordPoints(net, redPar)
         }
       })
       return pts

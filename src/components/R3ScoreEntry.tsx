@@ -7,7 +7,7 @@ import { adjustedStablefordPoints, scoreLabel, calculateStrokeAllowance, getNetS
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number; stroke_index: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null; par_red: number | null; stroke_index_red: number | null }
 
 type Props = {
   tournamentId: string
@@ -45,11 +45,11 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par, stroke_index")
+            .select("hole_number, par, stroke_index, par_red, stroke_index_red")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
           setHoles(holesData || [])
-          holesHaveStrokeIndex = (holesData || []).some((h) => h.stroke_index !== null)
+          holesHaveStrokeIndex = (holesData || []).some((h) => h.stroke_index_red !== null)
         }
 
         if (tournament.use_handicaps && holesHaveStrokeIndex) {
@@ -131,9 +131,9 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
   function adjustStrokes(holeNumber: number, delta: number) {
     const current = getStrokes(holeNumber)
     if (current === 0) {
-      // First tap — snap to par
+      // First tap — snap to red tee par
       const hole = holes.find((h) => h.hole_number === holeNumber)
-      const par = hole?.par || 4
+      const par = hole ? getRedPar(hole) : 4
       setHoleStrokes(holeNumber, par)
     } else {
       const newVal = Math.max(1, current + delta)
@@ -178,7 +178,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
     setSaving(true)
 
     const hole = holes.find((h) => h.hole_number === holeNumber)
-    const par = hole?.par || 4
+    const par = hole ? getRedPar(hole) : 4
     const strokes = getStrokes(holeNumber) === 0 ? par : getStrokes(holeNumber)
 
     // Update local state
@@ -240,15 +240,20 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
     }
   }
 
+  // R3 uses red tee par and stroke index
+  function getRedPar(hole: Hole): number {
+    return hole.par_red ?? hole.par
+  }
+
   function getHoleNetStrokes(hole: Hole): number {
     const gross = scores[hole.hole_number] || 0
     if (gross <= 0 || !handicapsActive) return gross
-    return getNetScore(gross, teamStrokeMap, hole.stroke_index)
+    return getNetScore(gross, teamStrokeMap, hole.stroke_index_red)
   }
 
   function getHoleHcpStrokes(hole: Hole): number {
-    if (!handicapsActive || hole.stroke_index === null) return 0
-    return teamStrokeMap.get(hole.stroke_index) ?? 0
+    if (!handicapsActive || hole.stroke_index_red === null) return 0
+    return teamStrokeMap.get(hole.stroke_index_red) ?? 0
   }
 
   function getTotalPoints(): number {
@@ -256,8 +261,8 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
     holes.forEach((h) => {
       const strokes = scores[h.hole_number]
       if (!strokes || strokes <= 0) return
-      const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, h.stroke_index) : strokes
-      total += adjustedStablefordPoints(net, h.par)
+      const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, h.stroke_index_red) : strokes
+      total += adjustedStablefordPoints(net, getRedPar(h))
     })
     return total
   }
@@ -271,13 +276,14 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
 
   const strokes = getStrokes(currentHole)
   const holeComplete = strokes > 0
+  const redPar = getRedPar(hole)
 
   // Points for this hole
   let holePoints: number | null = null
   const hcpStrokes = getHoleHcpStrokes(hole)
   const netStrokes = holeComplete ? getHoleNetStrokes(hole) : 0
   if (holeComplete) {
-    holePoints = adjustedStablefordPoints(netStrokes, hole.par)
+    holePoints = adjustedStablefordPoints(netStrokes, redPar)
   }
 
   // Players who used their mulligan on THIS hole
@@ -354,7 +360,10 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
               )}
             </div>
             <div className="flex gap-3 text-sm text-green-600">
-              <span>Par {hole.par}</span>
+              <span className="text-red-500">Par {redPar}</span>
+              {handicapsActive && hole.stroke_index_red && (
+                <span className="text-blue-600">HCP {hole.stroke_index_red}</span>
+              )}
             </div>
           </div>
 
@@ -368,8 +377,8 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
                 : "bg-red-50 text-red-700"
             }`}>
               {handicapsActive && hcpStrokes > 0
-                ? <>{strokes} &rarr; net {netStrokes} ({scoreLabel(netStrokes, hole.par)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
-                : <>{strokes} ({scoreLabel(strokes, hole.par)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
+                ? <>{strokes} &rarr; net {netStrokes} ({scoreLabel(netStrokes, redPar)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
+                : <>{strokes} ({scoreLabel(strokes, redPar)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
               }
             </div>
           )}
@@ -411,7 +420,7 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
             {/* Score label */}
             {strokes > 0 && (
               <p className="text-xs text-center text-green-600 mb-4">
-                {scoreLabel(strokes, hole.par)}
+                {scoreLabel(strokes, redPar)}
                 {handicapsActive && hcpStrokes > 0 && (
                   <span className="text-blue-600"> &middot; net: {netStrokes}</span>
                 )}

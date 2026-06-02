@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav"
 
 type Player = { id: string; name: string; sort_order: number; team_id?: string; handicap: number | null }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number; stroke_index: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null; par_red: number | null; stroke_index_red: number | null }
 
 type ScoreRow = {
   team_id: string
@@ -102,7 +102,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par, stroke_index")
+            .select("hole_number, par, stroke_index, par_red, stroke_index_red")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
           setHoles(holesData || [])
@@ -401,12 +401,13 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
     const gross = score.strokes
     const strokeMap = getTeamStrokeMap(selectedTeam.id)
-    const net = handicapsActive ? getNetScore(gross, strokeMap, hole.stroke_index) : gross
+    const redPar = hole.par_red ?? hole.par
+    const net = handicapsActive ? getNetScore(gross, strokeMap, hole.stroke_index_red) : gross
 
     return {
       strokes: showNet ? net : gross,
       grossStrokes: gross,
-      points: adjustedStablefordPoints(net, hole.par),
+      points: adjustedStablefordPoints(net, redPar),
     }
   }
 
@@ -472,9 +473,13 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     playerRows: { name: string; getData: (hNum: number) => number | null; getMoneyball?: (hNum: number) => boolean }[],
     getPoints: (hNum: number) => number | null,
     pointsLabel: string,
-    totalHoles?: Hole[]  // when provided, "Tot" column sums all these holes (e.g. all 18 for back 9 view)
+    totalHoles?: Hole[],  // when provided, "Tot" column sums all these holes (e.g. all 18 for back 9 view)
+    options?: { useRedTee?: boolean }
   ) {
     const totHoles = totalHoles ?? holeRange
+    const useRed = options?.useRedTee ?? false
+    const getHolePar = (h: Hole) => useRed ? (h.par_red ?? h.par) : h.par
+    const getHoleHcp = (h: Hole) => useRed ? (h.stroke_index_red ?? h.stroke_index) : h.stroke_index
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -490,12 +495,12 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           <tbody>
             {/* Par row */}
             <tr className="bg-green-50">
-              <td className="px-2 py-1.5 text-xs text-green-600 font-medium sticky left-0 bg-green-50">Par</td>
+              <td className={`px-2 py-1.5 text-xs font-medium sticky left-0 bg-green-50 ${useRed ? "text-red-500" : "text-green-600"}`}>Par</td>
               {holeRange.map((h) => (
-                <td key={h.hole_number} className="px-1 py-1.5 text-xs text-green-600 text-center">{h.par}</td>
+                <td key={h.hole_number} className={`px-1 py-1.5 text-xs text-center ${useRed ? "text-red-500" : "text-green-600"}`}>{getHolePar(h)}</td>
               ))}
               <td className="px-2 py-1.5 text-xs text-green-800 font-bold text-center">
-                {totHoles.reduce((s, h) => s + h.par, 0)}
+                {totHoles.reduce((s, h) => s + getHolePar(h), 0)}
               </td>
             </tr>
             {/* Stroke index row */}
@@ -503,7 +508,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               <tr className="bg-green-50 border-b-2 border-green-200">
                 <td className="px-2 py-1 text-[10px] text-blue-500 font-medium sticky left-0 bg-green-50">HCP</td>
                 {holeRange.map((h) => (
-                  <td key={h.hole_number} className="px-1 py-1 text-[10px] text-blue-500 text-center">{h.stroke_index ?? "–"}</td>
+                  <td key={h.hole_number} className="px-1 py-1 text-[10px] text-blue-500 text-center">{getHoleHcp(h) ?? "–"}</td>
                 ))}
                 <td className="px-2 py-1 text-[10px] text-blue-500 text-center"></td>
               </tr>
@@ -528,7 +533,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                     const mb = player.getMoneyball?.(h.hole_number) ?? false
                     return (
                       <td key={h.hole_number} className="px-1 py-2 text-center">
-                        {strokes ? renderScoreCell(strokes, h.par, mb) : <span className="text-gray-300 text-xs">–</span>}
+                        {strokes ? renderScoreCell(strokes, getHolePar(h), mb) : <span className="text-gray-300 text-xs">–</span>}
                       </td>
                     )
                   })}
@@ -565,7 +570,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     round: number,
     playerRows: { name: string; getData: (hNum: number) => number | null }[],
     getPoints: (hNum: number) => number | null,
-    pointsLabel: string
+    pointsLabel: string,
+    options?: { useRedTee?: boolean }
   ) {
     const nine = activeNine[round] || "front"
     return (
@@ -589,10 +595,10 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
             style={{ transform: nine === "back" ? "translateX(-100%)" : "translateX(0)" }}
           >
             <div className="w-full flex-shrink-0 px-3 py-2">
-              {renderNineTable(front9, playerRows, getPoints, pointsLabel)}
+              {renderNineTable(front9, playerRows, getPoints, pointsLabel, undefined, options)}
             </div>
             <div className="w-full flex-shrink-0 px-3 py-2">
-              {renderNineTable(back9, playerRows, getPoints, pointsLabel, holes)}
+              {renderNineTable(back9, playerRows, getPoints, pointsLabel, holes, options)}
             </div>
           </div>
         </div>
@@ -1009,7 +1015,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 const data = getR3HoleData(hNum)
                 return data ? data.points : null
               },
-              "Pts"
+              "Pts",
+              { useRedTee: true }
             )}
           </div>
 
