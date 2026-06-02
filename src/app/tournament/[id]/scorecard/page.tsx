@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef, use } from "react"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
+import { round1HolePoints, calculateSkins, adjustedStablefordPoints, calculateStrokeAllowance, getNetScore, calculateTeamHandicap } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
 
-type Player = { id: string; name: string; sort_order: number; team_id?: string }
+type Player = { id: string; name: string; sort_order: number; team_id?: string; handicap: number | null }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index: number | null }
 
 type ScoreRow = {
   team_id: string
@@ -36,6 +36,8 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   const [r2Pairings, setR2Pairings] = useState<R2Pairing[]>([])
   const [loading, setLoading] = useState(true)
   const [tournamentName, setTournamentName] = useState("")
+  const [useHandicaps, setUseHandicaps] = useState(false)
+  const [showNet, setShowNet] = useState(true)
 
   const [roundNumber] = useState(() => {
     if (roundFromUrl) return parseInt(roundFromUrl)
@@ -89,17 +91,18 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     const fetchData = async () => {
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("name, year, course_id")
+        .select("name, year, course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
       if (tournament) {
         setTournamentName(`${tournament.name} ${tournament.year}`)
+        setUseHandicaps(tournament.use_handicaps)
 
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par")
+            .select("hole_number, par, stroke_index")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
           setHoles(holesData || [])
@@ -108,7 +111,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, tournament_players(id, sort_order, people(display_name))")
+        .select("id, name, sort_order, tournament_players(id, sort_order, handicap, people(display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
@@ -122,6 +125,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
               id: tp.id as string,
               name: tp.people.display_name as string,
               sort_order: tp.sort_order as number,
+              handicap: tp.handicap as number | null,
             })),
         }))
         setTeams(sorted)
@@ -134,7 +138,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         // All tournament_players for skins mapping
         const { data: playersData } = await supabase
           .from("tournament_players")
-          .select("id, sort_order, team_id, people(display_name)")
+          .select("id, sort_order, team_id, handicap, people(display_name)")
           .in("team_id", sorted.map((t) => t.id))
         setAllPlayers(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -143,6 +147,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
             name: tp.people.display_name as string,
             sort_order: tp.sort_order as number,
             team_id: tp.team_id as string,
+            handicap: tp.handicap as number | null,
           }))
         )
       }
@@ -167,8 +172,31 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     fetchData()
   }, [tournamentId, teamIdFromUrl])
 
+  // ===== HANDICAP HELPERS =====
+  const hasStrokeIndex = holes.some((h) => h.stroke_index !== null)
+  const handicapsActive = useHandicaps && hasStrokeIndex
+  const allHandicaps = allPlayers.map((p) => p.handicap ?? 0)
+  const lowestHandicap = allHandicaps.length > 0 ? Math.min(...allHandicaps) : 0
+
+  function getPlayerStrokeMap(playerId: string): Map<number, number> {
+    if (!handicapsActive) return new Map()
+    const player = allPlayers.find((p) => p.id === playerId)
+    return calculateStrokeAllowance(player?.handicap ?? 0, lowestHandicap)
+  }
+
+  function getTeamStrokeMap(teamId: string): Map<number, number> {
+    if (!handicapsActive) return new Map()
+    const allTeamHcps = teams.map((t) => {
+      const playerHcps = allPlayers.filter((p) => p.team_id === t.id).map((p) => p.handicap)
+      return { teamId: t.id, hcp: calculateTeamHandicap(playerHcps) }
+    })
+    const lowestTeamHcp = Math.min(...allTeamHcps.map((t) => t.hcp ?? 0))
+    const thisTeamHcp = allTeamHcps.find((t) => t.teamId === teamId)?.hcp ?? 0
+    return calculateStrokeAllowance(thisTeamHcp, lowestTeamHcp)
+  }
+
   // ===== R1 CALCULATIONS =====
-  function getR1HoleData(holeNumber: number): { playerScores: { name: string; strokes: number }[]; bestScore: number; points: number } | null {
+  function getR1HoleData(holeNumber: number): { playerScores: { name: string; strokes: number; grossStrokes: number }[]; bestScore: number; points: number } | null {
     if (!selectedTeam) return null
     const teamR1 = allScores.filter((s) => s.team_id === selectedTeam.id && s.round_number === 1)
     const hole = holes.find((h) => h.hole_number === holeNumber)
@@ -176,19 +204,22 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
 
     const playerScores = selectedTeam.players.map((p) => {
       const score = teamR1.find((s) => s.hole_number === holeNumber && s.player_id === p.id)
-      return { name: p.name, strokes: score?.strokes || 0, moneyball_used: score?.moneyball_used || false, moneyball_lost: score?.moneyball_lost || false }
+      const gross = score?.strokes || 0
+      const net = handicapsActive && gross > 0 ? getNetScore(gross, getPlayerStrokeMap(p.id), hole.stroke_index) : gross
+      return { name: p.name, grossStrokes: gross, netStrokes: net, strokes: gross, moneyball_used: score?.moneyball_used || false, moneyball_lost: score?.moneyball_lost || false }
     })
 
     const allEntered = playerScores.every((p) => p.strokes > 0)
     if (!allEntered) return null
 
+    // Points always calculated from net scores
     const result = round1HolePoints(
-      playerScores.map((p) => ({ strokes: p.strokes, moneyball_used: p.moneyball_used, moneyball_lost: p.moneyball_lost })),
+      playerScores.map((p) => ({ strokes: p.netStrokes, moneyball_used: p.moneyball_used, moneyball_lost: p.moneyball_lost })),
       hole.par
     )
 
     return {
-      playerScores: playerScores.map((p) => ({ name: p.name, strokes: p.strokes })),
+      playerScores: playerScores.map((p) => ({ name: p.name, strokes: showNet ? p.netStrokes : p.grossStrokes, grossStrokes: p.grossStrokes })),
       bestScore: result.bestScore,
       points: result.points,
     }
@@ -232,7 +263,10 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
           const player = allPlayers.find((p) => p.id === pid)
           const raw = score?.strokes || 0
-          const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          const mbAdjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          const adjusted = handicapsActive && mbAdjusted > 0
+            ? getNetScore(mbAdjusted, getPlayerStrokeMap(pid), hole.stroke_index)
+            : mbAdjusted
           return { playerId: pid, teamId: player?.team_id || "", strokes: adjusted }
         })
         if (holePlayers.every((p) => p.strokes > 0)) {
@@ -322,7 +356,10 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
           const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
           const player = allPlayers.find((p) => p.id === pid)
           const raw = score?.strokes || 0
-          const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          const mbAdjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+          const adjusted = handicapsActive && mbAdjusted > 0
+            ? getNetScore(mbAdjusted, getPlayerStrokeMap(pid), hole.stroke_index)
+            : mbAdjusted
           return { playerId: pid, teamId: player?.team_id || "", strokes: adjusted }
         })
         if (holePlayers.every((p) => p.strokes > 0)) {
@@ -353,7 +390,7 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
   }
 
   // ===== R3 CALCULATIONS =====
-  function getR3HoleData(holeNumber: number): { strokes: number; points: number } | null {
+  function getR3HoleData(holeNumber: number): { strokes: number; grossStrokes: number; points: number } | null {
     if (!selectedTeam) return null
     const teamR3 = allScores.filter((s) => s.team_id === selectedTeam.id && s.round_number === 3)
     const hole = holes.find((h) => h.hole_number === holeNumber)
@@ -362,7 +399,15 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
     const score = teamR3.find((s) => s.hole_number === holeNumber && s.strokes > 0)
     if (!score) return null
 
-    return { strokes: score.strokes, points: adjustedStablefordPoints(score.strokes, hole.par) }
+    const gross = score.strokes
+    const strokeMap = getTeamStrokeMap(selectedTeam.id)
+    const net = handicapsActive ? getNetScore(gross, strokeMap, hole.stroke_index) : gross
+
+    return {
+      strokes: showNet ? net : gross,
+      grossStrokes: gross,
+      points: adjustedStablefordPoints(net, hole.par),
+    }
   }
 
   function getR3Total(): { points: number; completed: number } {
@@ -626,6 +671,30 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
+      {/* Gross/Net toggle — only when handicaps are enabled */}
+      {handicapsActive && (
+        <div className="bg-white border-b border-green-200 px-4 py-2">
+          <div className="max-w-md mx-auto flex gap-2 justify-center">
+            <button
+              onClick={() => setShowNet(false)}
+              className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
+                !showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              Gross
+            </button>
+            <button
+              onClick={() => setShowNet(true)}
+              className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors ${
+                showNet ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+              }`}
+            >
+              Net
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Round sections */}
       <div className="flex-1 px-4 py-4">
         <div className="max-w-md mx-auto flex flex-col gap-3">
@@ -655,7 +724,12 @@ export default function ScorecardPage({ params }: { params: Promise<{ id: string
                 getData: (hNum: number) => {
                   const teamR1 = allScores.filter((s) => s.team_id === selectedTeam!.id && s.round_number === 1)
                   const score = teamR1.find((s) => s.hole_number === hNum && s.player_id === player.id)
-                  return score?.strokes || null
+                  if (!score?.strokes) return null
+                  if (showNet && handicapsActive) {
+                    const hole = holes.find((h) => h.hole_number === hNum)
+                    return getNetScore(score.strokes, getPlayerStrokeMap(player.id), hole?.stroke_index ?? null)
+                  }
+                  return score.strokes
                 },
                 getMoneyball: (hNum: number) => {
                   const teamR1 = allScores.filter((s) => s.team_id === selectedTeam!.id && s.round_number === 1)

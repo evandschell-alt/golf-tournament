@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, use } from "react"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
+import { round1HolePoints, calculateSkins, adjustedStablefordPoints, calculateStrokeAllowance, getNetScore, calculateTeamHandicap } from "@/lib/scoring"
 import Link from "next/link"
 import BottomNav from "@/components/BottomNav"
 
 type Team = { id: string; name: string; sort_order: number }
-type Player = { id: string; team_id: string }
-type Hole = { hole_number: number; par: number }
+type Player = { id: string; team_id: string; handicap: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null }
 type R2Pairing = { group_number: number; player_id: string }
 type ScoreRow = {
   team_id: string
@@ -44,6 +44,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
   const [holes, setHoles] = useState<Hole[]>([])
   const [scores, setScores] = useState<ScoreRow[]>([])
   const [r2Pairings, setR2Pairings] = useState<R2Pairing[]>([])
+  const [useHandicaps, setUseHandicaps] = useState(false)
 
   const calculateStandings = useCallback(
     (
@@ -51,8 +52,31 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       playersData: Player[],
       holesData: Hole[],
       scoresData: ScoreRow[],
-      pairingsData: R2Pairing[]
+      pairingsData: R2Pairing[],
+      handicapsEnabled: boolean
     ): TeamStanding[] => {
+      // Handicap helpers
+      const hasStrokeIndex = holesData.some((h) => h.stroke_index !== null)
+      const hcpActive = handicapsEnabled && hasStrokeIndex
+      const allHcps = playersData.map((p) => p.handicap ?? 0)
+      const lowestHcp = allHcps.length > 0 ? Math.min(...allHcps) : 0
+
+      function playerStrokeMap(playerId: string): Map<number, number> {
+        if (!hcpActive) return new Map()
+        const player = playersData.find((p) => p.id === playerId)
+        return calculateStrokeAllowance(player?.handicap ?? 0, lowestHcp)
+      }
+
+      function teamStrokeMap(teamId: string): Map<number, number> {
+        if (!hcpActive) return new Map()
+        const allTeamHcps = teamsData.map((t) => {
+          const pHcps = playersData.filter((p) => p.team_id === t.id).map((p) => p.handicap)
+          return { teamId: t.id, hcp: calculateTeamHandicap(pHcps) }
+        })
+        const lowestTeamHcp = Math.min(...allTeamHcps.map((t) => t.hcp ?? 0))
+        const thisTeamHcp = allTeamHcps.find((t) => t.teamId === teamId)?.hcp ?? 0
+        return calculateStrokeAllowance(thisTeamHcp, lowestTeamHcp)
+      }
       // ---- ROUND 2: SKINS (calculated once for all foursomes) ----
       // Group pairings by group_number
       const foursomeGroups: { [groupNum: number]: string[] } = {}
@@ -80,7 +104,10 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
             const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
             const player = playersData.find((p) => p.id === pid)
             const raw = score?.strokes || 0
-            const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+            const mbAdjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+            const adjusted = hcpActive && mbAdjusted > 0
+              ? getNetScore(mbAdjusted, playerStrokeMap(pid), hole.stroke_index)
+              : mbAdjusted
             return {
               playerId: pid,
               teamId: player?.team_id || "",
@@ -131,11 +158,16 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
             )
 
             if (holePlayerScores.every((s) => s && s.strokes > 0) && holePlayerScores.length >= 4) {
-              const playerData = holePlayerScores.map((s) => ({
-                strokes: s!.strokes,
-                moneyball_used: s!.moneyball_used,
-                moneyball_lost: s!.moneyball_lost,
-              }))
+              const playerData = holePlayerScores.map((s) => {
+                const net = hcpActive
+                  ? getNetScore(s!.strokes, playerStrokeMap(s!.player_id!), hole.stroke_index)
+                  : s!.strokes
+                return {
+                  strokes: net,
+                  moneyball_used: s!.moneyball_used,
+                  moneyball_lost: s!.moneyball_lost,
+                }
+              })
               round1Points += round1HolePoints(playerData, hole.par).points
               round1Completed++
             }
@@ -161,10 +193,12 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
             }
           })
 
+          const r3StrokeMap = teamStrokeMap(team.id)
           holesData.forEach((hole) => {
             const strokes = r3HoleScores[hole.hole_number]
             if (strokes && strokes > 0) {
-              round3Points += adjustedStablefordPoints(strokes, hole.par)
+              const net = hcpActive ? getNetScore(strokes, r3StrokeMap, hole.stroke_index) : strokes
+              round3Points += adjustedStablefordPoints(net, hole.par)
               round3Completed++
             }
           })
@@ -193,20 +227,22 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       // Tournament info
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("name, year, course_id")
+        .select("name, year, course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
       if (!tournament) return
 
       setTournamentName(`${tournament.name} ${tournament.year}`)
+      const hcpEnabled = tournament.use_handicaps ?? false
+      setUseHandicaps(hcpEnabled)
 
       // Fetch holes
       let holesData: Hole[] = []
       if (tournament.course_id) {
         const { data } = await supabase
           .from("holes")
-          .select("hole_number, par")
+          .select("hole_number, par, stroke_index")
           .eq("course_id", tournament.course_id)
           .order("hole_number")
         holesData = data || []
@@ -219,10 +255,10 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
-      // Fetch tournament_players (needed for R2 skins team mapping)
+      // Fetch tournament_players (needed for R2 skins team mapping + handicaps)
       const { data: playersData } = await supabase
         .from("tournament_players")
-        .select("id, team_id")
+        .select("id, team_id, handicap")
         .in("team_id", (teamsData || []).map((t) => t.id))
 
       // Fetch R2 pairings
@@ -248,7 +284,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
       setHoles(h)
       setScores(s)
       setR2Pairings(p)
-      setStandings(calculateStandings(t, pl, h, s, p))
+      setStandings(calculateStandings(t, pl, h, s, p, hcpEnabled))
       setLastUpdated(new Date())
       setLoading(false)
     }
@@ -278,7 +314,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
 
             const s = scoresData || []
             setScores(s)
-            setStandings(calculateStandings(teams, players, holes, s, r2Pairings))
+            setStandings(calculateStandings(teams, players, holes, s, r2Pairings, useHandicaps))
             setLastUpdated(new Date())
           }
           refetch()
@@ -289,7 +325,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ id: stri
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [tournamentId, teams, players, holes, r2Pairings, calculateStandings])
+  }, [tournamentId, teams, players, holes, r2Pairings, useHandicaps, calculateStandings])
 
   if (loading) {
     return (

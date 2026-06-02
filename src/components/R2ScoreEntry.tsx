@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { calculateSkins, scoreLabel } from "@/lib/scoring"
+import { calculateSkins, scoreLabel, calculateStrokeAllowance, getNetScore } from "@/lib/scoring"
 
-type Player = { id: string; name: string; team_id: string; team_name: string }
-type Hole = { hole_number: number; par: number }
+type Player = { id: string; name: string; team_id: string; team_name: string; handicap: number | null }
+type Hole = { hole_number: number; par: number; stroke_index: number | null }
 
 type Foursome = {
   groupNumber: number
@@ -38,29 +38,42 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
   const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
   // Moneyball tracking: per-player, which hole they used their moneyball on (if any)
   const [moneyballByPlayer, setMoneyballByPlayer] = useState<{ [playerId: string]: number }>({})
+  const [useHandicaps, setUseHandicaps] = useState(false)
+  const [allPlayerHandicaps, setAllPlayerHandicaps] = useState<{ id: string; handicap: number | null }[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
       // Fetch holes
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("course_id")
+        .select("course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
-      if (tournament?.course_id) {
-        const { data: holesData } = await supabase
-          .from("holes")
-          .select("hole_number, par")
-          .eq("course_id", tournament.course_id)
-          .order("hole_number")
-        setHoles(holesData || [])
+      if (tournament) {
+        setUseHandicaps(tournament.use_handicaps)
+
+        if (tournament.course_id) {
+          const { data: holesData } = await supabase
+            .from("holes")
+            .select("hole_number, par, stroke_index")
+            .eq("course_id", tournament.course_id)
+            .order("hole_number")
+          setHoles(holesData || [])
+        }
       }
+
+      // Fetch all player handicaps for this tournament
+      const { data: allPlayers } = await supabase
+        .from("tournament_players")
+        .select("id, handicap")
+        .eq("tournament_id", tournamentId)
+      setAllPlayerHandicaps(allPlayers || [])
 
       // Fetch R2 pairings with tournament_player and team info
       const { data: pairings } = await supabase
         .from("r2_pairings")
-        .select("group_number, player_id, tournament_players(id, team_id, people(display_name), teams(name))")
+        .select("group_number, player_id, tournament_players(id, team_id, handicap, people(display_name), teams(name))")
         .eq("tournament_id", tournamentId)
         .order("group_number")
 
@@ -79,6 +92,7 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
               name: peopleData ? (peopleData.display_name as string) : "",
               team_id: tpData.team_id as string,
               team_name: teamData ? (teamData.name as string) : "",
+              handicap: tpData.handicap as number | null,
             })
           }
         })
@@ -265,7 +279,24 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
     setSaving(false)
   }
 
-  // Calculate skins results for completed holes (applies moneyball adjustment)
+  // Handicap helpers
+  const hasStrokeIndex = holes.some((h) => h.stroke_index !== null)
+  const handicapsActive = useHandicaps && hasStrokeIndex
+  const allHcps = allPlayerHandicaps.map((p) => p.handicap ?? 0)
+  const lowestHandicap = allHcps.length > 0 ? Math.min(...allHcps) : 0
+
+  function getPlayerStrokeMap(playerId: string): Map<number, number> {
+    if (!handicapsActive) return new Map()
+    const player = allPlayerHandicaps.find((p) => p.id === playerId)
+    return calculateStrokeAllowance(player?.handicap ?? 0, lowestHandicap)
+  }
+
+  function getPlayerHcpStrokes(playerId: string, strokeIndex: number | null): number {
+    if (!handicapsActive || strokeIndex === null) return 0
+    return getPlayerStrokeMap(playerId).get(strokeIndex) ?? 0
+  }
+
+  // Calculate skins results for completed holes (applies moneyball + handicap adjustment)
   function getSkinsResults() {
     if (!selectedFoursome) return null
 
@@ -281,12 +312,12 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
         holeNumber: hole.hole_number,
         players: selectedFoursome.players.map((p) => {
           const ps = hs[p.id]
-          // Moneyball reduces effective strokes by 1 unless the ball was lost
-          const adjusted = ps.strokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)
+          const mbAdjusted = ps.strokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)
+          const net = handicapsActive ? getNetScore(mbAdjusted, getPlayerStrokeMap(p.id), hole.stroke_index) : mbAdjusted
           return {
             playerId: p.id,
             teamId: p.team_id,
-            strokes: adjusted,
+            strokes: net,
           }
         }),
       })
@@ -489,7 +520,14 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-green-900 text-sm">{player.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-green-900 text-sm">{player.name}</span>
+                    {handicapsActive && getPlayerHcpStrokes(player.id, hole.stroke_index) > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+                        -{getPlayerHcpStrokes(player.id, hole.stroke_index)}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-green-500">{player.team_name}</span>
                 </div>
 
@@ -547,14 +585,21 @@ export default function R2ScoreEntry({ tournamentId, initialFoursomeIndex }: Pro
                 </div>
 
                 {/* Score label */}
-                {strokes > 0 && (
-                  <p className="text-xs text-center text-green-600 mt-2">
-                    {scoreLabel(strokes, hole.par)}
-                    {ps.moneyball_used && !ps.moneyball_lost && (
-                      <span className="text-yellow-600"> (adjusted: {strokes - 1})</span>
-                    )}
-                  </p>
-                )}
+                {strokes > 0 && (() => {
+                  const hcpStr = getPlayerHcpStrokes(player.id, hole.stroke_index)
+                  const netStr = handicapsActive && hcpStr > 0 ? strokes - hcpStr : null
+                  return (
+                    <p className="text-xs text-center text-green-600 mt-2">
+                      {scoreLabel(strokes, hole.par)}
+                      {ps.moneyball_used && !ps.moneyball_lost && (
+                        <span className="text-yellow-600"> (adjusted: {strokes - 1})</span>
+                      )}
+                      {netStr !== null && (
+                        <span className="text-blue-600"> &middot; net: {netStr}</span>
+                      )}
+                    </p>
+                  )
+                })()}
               </div>
             )
           })}

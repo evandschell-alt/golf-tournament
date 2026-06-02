@@ -13,6 +13,7 @@ export type Hole = {
   course_id: string
   hole_number: number
   par: number
+  stroke_index: number | null
 }
 
 export type Tournament = {

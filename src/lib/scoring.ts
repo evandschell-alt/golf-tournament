@@ -239,6 +239,57 @@ export function calculateSkins(
   }
 }
 
+// ============================================
+// HANDICAP NET SCORING
+// ============================================
+
+/**
+ * Given a player's handicap and the lowest handicap in the field,
+ * return a Map from stroke_index (1-18) to how many strokes
+ * that hole receives (0, 1, or 2).
+ *
+ * Wraps around: if allowance > 18, the hardest holes get 2 strokes.
+ */
+export function calculateStrokeAllowance(
+  handicap: number,
+  lowestHandicap: number
+): Map<number, number> {
+  const allowance = Math.max(0, Math.round(handicap) - Math.round(lowestHandicap))
+  const strokes = new Map<number, number>()
+  for (let si = 1; si <= 18; si++) {
+    let s = 0
+    if (si <= allowance) s += 1
+    if (allowance > 18 && si <= allowance - 18) s += 1
+    strokes.set(si, s)
+  }
+  return strokes
+}
+
+/**
+ * Net score for a single hole: gross strokes minus handicap strokes.
+ * Returns gross if stroke_index is null (not configured).
+ */
+export function getNetScore(
+  grossStrokes: number,
+  strokeMap: Map<number, number>,
+  strokeIndex: number | null
+): number {
+  if (strokeIndex === null) return grossStrokes
+  return grossStrokes - (strokeMap.get(strokeIndex) ?? 0)
+}
+
+/**
+ * Team handicap for scramble = average of all members' handicaps,
+ * rounded to nearest integer. Returns null if any player is missing a handicap.
+ */
+export function calculateTeamHandicap(
+  handicaps: (number | null)[]
+): number | null {
+  const valid = handicaps.map((h) => (h === null ? 0 : h))
+  const sum = valid.reduce((a, b) => a + b, 0)
+  return Math.round(sum / valid.length)
+}
+
 /**
  * Format a score relative to par for display.
  * e.g., -1 = "Birdie", 0 = "Par", +1 = "Bogey"

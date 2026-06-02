@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { adjustedStablefordPoints, round3TotalPoints, scoreLabel } from "@/lib/scoring"
+import { adjustedStablefordPoints, scoreLabel, calculateStrokeAllowance, getNetScore, calculateTeamHandicap } from "@/lib/scoring"
 
 type Player = { id: string; name: string; sort_order: number }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index: number | null }
 
 type Props = {
   tournamentId: string
@@ -24,32 +24,62 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
+  const [useHandicaps, setUseHandicaps] = useState(false)
+  const [teamStrokeMap, setTeamStrokeMap] = useState<Map<number, number>>(new Map())
+  const [handicapsActive, setHandicapsActive] = useState(false)
 
   const MAX_MULLIGANS = 4 // one per player
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch holes
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("course_id")
+        .select("course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
-      if (tournament?.course_id) {
-        const { data: holesData } = await supabase
-          .from("holes")
-          .select("hole_number, par")
-          .eq("course_id", tournament.course_id)
-          .order("hole_number")
-        setHoles(holesData || [])
+      let holesHaveStrokeIndex = false
+      if (tournament) {
+        setUseHandicaps(tournament.use_handicaps)
+
+        if (tournament.course_id) {
+          const { data: holesData } = await supabase
+            .from("holes")
+            .select("hole_number, par, stroke_index")
+            .eq("course_id", tournament.course_id)
+            .order("hole_number")
+          setHoles(holesData || [])
+          holesHaveStrokeIndex = (holesData || []).some((h) => h.stroke_index !== null)
+        }
+
+        if (tournament.use_handicaps && holesHaveStrokeIndex) {
+          // Fetch all players to compute team handicaps
+          const { data: allTeams } = await supabase
+            .from("teams")
+            .select("id, tournament_players(handicap)")
+            .eq("tournament_id", tournamentId)
+
+          if (allTeams) {
+            const teamHcps = allTeams.map((t) => ({
+              teamId: t.id,
+              hcp: calculateTeamHandicap(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (t.tournament_players || []).map((tp: any) => tp.handicap as number | null)
+              ),
+            }))
+            const lowestTeamHcp = Math.min(...teamHcps.map((t) => t.hcp ?? 0))
+            const thisTeamHcp = teamHcps.find((t) => t.teamId === team.id)?.hcp ?? 0
+            setTeamStrokeMap(calculateStrokeAllowance(thisTeamHcp, lowestTeamHcp))
+            setHandicapsActive(true)
+          }
+        }
       }
 
       setLoading(false)
     }
 
     fetchData()
-  }, [tournamentId])
+  }, [tournamentId, team.id])
 
   // Load existing R3 scores
   useEffect(() => {
@@ -210,13 +240,26 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
     }
   }
 
-  // Calculate total points
+  function getHoleNetStrokes(hole: Hole): number {
+    const gross = scores[hole.hole_number] || 0
+    if (gross <= 0 || !handicapsActive) return gross
+    return getNetScore(gross, teamStrokeMap, hole.stroke_index)
+  }
+
+  function getHoleHcpStrokes(hole: Hole): number {
+    if (!handicapsActive || hole.stroke_index === null) return 0
+    return teamStrokeMap.get(hole.stroke_index) ?? 0
+  }
+
   function getTotalPoints(): number {
-    return round3TotalPoints(
-      holes
-        .filter((h) => scores[h.hole_number] && scores[h.hole_number] > 0)
-        .map((h) => ({ par: h.par, strokes: scores[h.hole_number] }))
-    )
+    let total = 0
+    holes.forEach((h) => {
+      const strokes = scores[h.hole_number]
+      if (!strokes || strokes <= 0) return
+      const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, h.stroke_index) : strokes
+      total += adjustedStablefordPoints(net, h.par)
+    })
+    return total
   }
 
   if (loading) {
@@ -231,8 +274,10 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
 
   // Points for this hole
   let holePoints: number | null = null
+  const hcpStrokes = getHoleHcpStrokes(hole)
+  const netStrokes = holeComplete ? getHoleNetStrokes(hole) : 0
   if (holeComplete) {
-    holePoints = adjustedStablefordPoints(strokes, hole.par)
+    holePoints = adjustedStablefordPoints(netStrokes, hole.par)
   }
 
   // Players who used their mulligan on THIS hole
@@ -322,7 +367,10 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
                 ? "bg-gray-100 text-gray-600"
                 : "bg-red-50 text-red-700"
             }`}>
-              {strokes} ({scoreLabel(strokes, hole.par)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}
+              {handicapsActive && hcpStrokes > 0
+                ? <>{strokes} &rarr; net {netStrokes} ({scoreLabel(netStrokes, hole.par)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
+                : <>{strokes} ({scoreLabel(strokes, hole.par)}) &rarr; {holePoints > 0 ? "+" : ""}{holePoints} {holePoints === 1 || holePoints === -1 ? "point" : "points"}</>
+              }
             </div>
           )}
         </div>
@@ -332,7 +380,14 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
       <div className="flex-1 px-4 pb-4">
         <div className="max-w-md mx-auto flex flex-col gap-3">
           <div className="rounded-xl bg-white border-2 border-green-100 p-6">
-            <p className="text-center text-sm font-semibold text-green-900 mb-4">Team Score</p>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <p className="text-sm font-semibold text-green-900">Team Score</p>
+              {handicapsActive && hcpStrokes > 0 && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+                  -{hcpStrokes}
+                </span>
+              )}
+            </div>
 
             {/* Stroke counter */}
             <div className="flex items-center justify-center gap-6 mb-2">
@@ -357,6 +412,9 @@ export default function R3ScoreEntry({ tournamentId, team }: Props) {
             {strokes > 0 && (
               <p className="text-xs text-center text-green-600 mb-4">
                 {scoreLabel(strokes, hole.par)}
+                {handicapsActive && hcpStrokes > 0 && (
+                  <span className="text-blue-600"> &middot; net: {netStrokes}</span>
+                )}
               </p>
             )}
 

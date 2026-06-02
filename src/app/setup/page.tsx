@@ -21,11 +21,13 @@ function PlayerInput({
   playerIndex,
   onUpdate,
   excludePersonIds,
+  showHandicap,
 }: {
   player: PlayerForm
   playerIndex: number
   onUpdate: (field: keyof PlayerForm, value: string | boolean | null) => void
   excludePersonIds: string[]
+  showHandicap: boolean
 }) {
   const [suggestions, setSuggestions] = useState<PersonSuggestion[]>([])
   const [open, setOpen] = useState(false)
@@ -79,7 +81,7 @@ function PlayerInput({
   const isConfirmed = !!player.personId || player.displayName.trim().length > 0
 
   return (
-    <div className="grid grid-cols-[1fr_4.5rem_2.5rem] gap-2 items-start">
+    <div className={`grid ${showHandicap ? "grid-cols-[1fr_4.5rem_2.5rem]" : "grid-cols-[1fr_2.5rem]"} gap-2 items-start`}>
       {/* Name field with typeahead */}
       <div ref={wrapperRef} className="relative">
         {playerIndex === 0 && (
@@ -126,19 +128,21 @@ function PlayerInput({
         )}
       </div>
 
-      {/* Handicap */}
-      <div>
-        {playerIndex === 0 && (
-          <span className="block text-xs font-medium text-green-700 mb-1">HCP</span>
-        )}
-        <input
-          type="number"
-          value={player.handicap}
-          onChange={(e) => onUpdate("handicap", e.target.value)}
-          className="w-full rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-          placeholder="0"
-        />
-      </div>
+      {/* Handicap (only when use_handicaps is on) */}
+      {showHandicap && (
+        <div>
+          {playerIndex === 0 && (
+            <span className="block text-xs font-medium text-green-700 mb-1">HCP</span>
+          )}
+          <input
+            type="number"
+            value={player.handicap}
+            onChange={(e) => onUpdate("handicap", e.target.value)}
+            className="w-full rounded-lg border border-green-300 px-2 py-2.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="0"
+          />
+        </div>
+      )}
 
       {/* Captain checkbox */}
       <div className="flex flex-col items-center">
@@ -248,13 +252,15 @@ function CourseStep({
   setCourseName,
   holes,
   setHoles,
+  useHandicaps,
   onNext,
   onBack,
 }: {
   courseName: string
   setCourseName: (n: string) => void
-  holes: { hole_number: number; par: number }[]
+  holes: { hole_number: number; par: number; stroke_index: number }[]
   setHoles: (h: typeof holes) => void
+  useHandicaps: boolean
   onNext: () => void
   onBack: () => void
 }) {
@@ -265,6 +271,14 @@ function CourseStep({
   }
 
   const allParsEntered = holes.every((h) => h.par >= 3 && h.par <= 6)
+
+  const strokeIndexes = holes.map((h) => h.stroke_index)
+  const strokeIndexValid =
+    new Set(strokeIndexes).size === 18 &&
+    strokeIndexes.every((si) => si >= 1 && si <= 18)
+  const hasDuplicateStrokeIndex = new Set(strokeIndexes).size < 18
+
+  const canProceed = courseName && allParsEntered && (!useHandicaps || strokeIndexValid)
 
   return (
     <div className="flex flex-col gap-6 overflow-x-hidden">
@@ -285,9 +299,10 @@ function CourseStep({
       </label>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1.5rem_2.5rem] gap-2 text-xs font-semibold text-green-700">
+      <div className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 text-xs font-semibold text-green-700">
         <span className="text-left">#</span>
         <span className="text-left">Par</span>
+        <span className="text-left">HCP</span>
       </div>
 
       {/* Hole rows */}
@@ -295,7 +310,7 @@ function CourseStep({
         {holes.map((hole, i) => (
           <div
             key={hole.hole_number}
-            className="grid grid-cols-[1.5rem_2.5rem] gap-2 items-center"
+            className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 items-center"
           >
             <span className="text-sm font-bold text-green-900 text-left">
               {hole.hole_number}
@@ -309,9 +324,26 @@ function CourseStep({
               <option value={4}>4</option>
               <option value={5}>5</option>
             </select>
+            <select
+              value={hole.stroke_index}
+              onChange={(e) => updateHole(i, "stroke_index", parseInt(e.target.value))}
+              className="w-full rounded-lg border border-green-300 py-2 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {Array.from({ length: 18 }, (_, n) => (
+                <option key={n + 1} value={n + 1}>
+                  {n + 1}
+                </option>
+              ))}
+            </select>
           </div>
         ))}
       </div>
+
+      {useHandicaps && hasDuplicateStrokeIndex && (
+        <p className="text-sm text-red-600">
+          Each HCP value (1–18) must be used exactly once. Check for duplicates.
+        </p>
+      )}
 
       <div className="flex gap-3">
         <button
@@ -322,7 +354,7 @@ function CourseStep({
         </button>
         <button
           onClick={onNext}
-          disabled={!courseName || !allParsEntered}
+          disabled={!canProceed}
           className="flex-1 rounded-xl bg-green-700 py-4 text-base font-semibold text-white shadow-sm hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           Next: Teams
@@ -352,12 +384,14 @@ function makeDefaultPlayers(): PlayerForm[] {
 function TeamsStep({
   teams,
   setTeams,
+  useHandicaps,
   onBack,
   onSave,
   saving,
 }: {
   teams: TeamForm[]
   setTeams: (t: TeamForm[]) => void
+  useHandicaps: boolean
   onBack: () => void
   onSave: () => void
   saving: boolean
@@ -468,6 +502,7 @@ function TeamsStep({
                 excludePersonIds={allSelectedPersonIds.filter(
                   (id) => id !== player.personId
                 )}
+                showHandicap={useHandicaps}
               />
             ))}
           </div>
@@ -562,6 +597,7 @@ function SetupContent() {
     Array.from({ length: 18 }, (_, i) => ({
       hole_number: i + 1,
       par: 4,
+      stroke_index: i + 1,
     }))
   )
 
@@ -590,6 +626,7 @@ function SetupContent() {
         course_id: courseData.id,
         hole_number: h.hole_number,
         par: h.par,
+        stroke_index: h.stroke_index,
       }))
 
       const { error: holesError } = await supabase.from("holes").insert(holesData)
@@ -655,7 +692,7 @@ function SetupContent() {
               person_id: personId,
               tournament_id: tournamentData.id,
               team_id: teamData.id,
-              handicap: parseInt(player.handicap) || null,
+              handicap: player.handicap.trim() !== "" ? parseInt(player.handicap) : null,
               is_captain: player.isCaptain,
               sort_order: j,
             })
@@ -729,6 +766,7 @@ function SetupContent() {
             setCourseName={setCourseName}
             holes={holes}
             setHoles={setHoles}
+            useHandicaps={tournament.use_handicaps}
             onNext={() => setStep(3)}
             onBack={() => setStep(1)}
           />
@@ -737,6 +775,7 @@ function SetupContent() {
           <TeamsStep
             teams={teams}
             setTeams={setTeams}
+            useHandicaps={tournament.use_handicaps}
             onBack={() => setStep(2)}
             onSave={handleSave}
             saving={saving}

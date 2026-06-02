@@ -3,14 +3,14 @@
 import { useState, useEffect, use } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { round1HolePoints, scoreLabel, calculateSkins, adjustedStablefordPoints } from "@/lib/scoring"
+import { round1HolePoints, scoreLabel, calculateSkins, adjustedStablefordPoints, calculateStrokeAllowance, getNetScore, calculateTeamHandicap } from "@/lib/scoring"
 import BottomNav from "@/components/BottomNav"
 import R2ScoreEntry from "@/components/R2ScoreEntry"
 import R3ScoreEntry from "@/components/R3ScoreEntry"
 
-type Player = { id: string; name: string; sort_order: number }
+type Player = { id: string; name: string; sort_order: number; handicap: number | null }
 type Team = { id: string; name: string; players: Player[] }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index: number | null }
 
 type HoleScores = {
   [playerId: string]: {
@@ -78,30 +78,32 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   }, [currentHole, roundNumber, tournamentId])
   const [allScores, setAllScores] = useState<{ team_id: string; round_number: number; hole_number: number; strokes: number; moneyball_used: boolean; moneyball_lost: boolean; player_id: string | null }[]>([])
   const [r2Pairings, setR2Pairings] = useState<{ group_number: number; player_id: string }[]>([])
-  const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string }[]>([])
+  const [allPlayers, setAllPlayers] = useState<{ id: string; team_id: string; handicap: number | null }[]>([])
 
   // Moneyball tracking: per-player, which hole they used their moneyball on (if any)
   const [moneyballByPlayer, setMoneyballByPlayer] = useState<{ [playerId: string]: number }>({})
   const [teeBox, setTeeBox] = useState<string>("white")
   const [holeDropdownOpen, setHoleDropdownOpen] = useState(false)
+  const [useHandicaps, setUseHandicaps] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
       // Tournament info
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("name, year, course_id")
+        .select("name, year, course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
       if (tournament) {
         setTournamentName(`${tournament.name} ${tournament.year}`)
+        setUseHandicaps(tournament.use_handicaps)
 
         // Fetch holes
         if (tournament.course_id) {
           const { data: holesData } = await supabase
             .from("holes")
-            .select("hole_number, par")
+            .select("hole_number, par, stroke_index")
             .eq("course_id", tournament.course_id)
             .order("hole_number")
 
@@ -112,7 +114,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       // Fetch teams and players
       const { data: teamsData } = await supabase
         .from("teams")
-        .select("id, name, sort_order, tournament_players(id, sort_order, people(display_name))")
+        .select("id, name, sort_order, tournament_players(id, sort_order, handicap, people(display_name))")
         .eq("tournament_id", tournamentId)
         .order("sort_order")
 
@@ -126,6 +128,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
               id: tp.id as string,
               name: tp.people.display_name as string,
               sort_order: tp.sort_order as number,
+              handicap: tp.handicap as number | null,
             })),
         }))
         setTeams(sorted)
@@ -139,7 +142,7 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         // Fetch all tournament_players for total points calc
         const { data: playersData } = await supabase
           .from("tournament_players")
-          .select("id, team_id")
+          .select("id, team_id, handicap")
           .in("team_id", sorted.map((t) => t.id))
         setAllPlayers(playersData || [])
       }
@@ -366,6 +369,23 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  // Handicap stroke maps: compute once and reuse
+  const allHandicaps = allPlayers.map((p) => p.handicap ?? 0)
+  const lowestHandicap = allHandicaps.length > 0 ? Math.min(...allHandicaps) : 0
+  const hasStrokeIndex = holes.some((h) => h.stroke_index !== null)
+  const handicapsActive = useHandicaps && hasStrokeIndex
+
+  function getPlayerStrokeMap(playerId: string): Map<number, number> {
+    if (!handicapsActive) return new Map()
+    const player = allPlayers.find((p) => p.id === playerId)
+    return calculateStrokeAllowance(player?.handicap ?? 0, lowestHandicap)
+  }
+
+  function getPlayerHcpStrokes(playerId: string, strokeIndex: number | null): number {
+    if (!handicapsActive || strokeIndex === null) return 0
+    return getPlayerStrokeMap(playerId).get(strokeIndex) ?? 0
+  }
+
   // Calculate running total points
   // R1 points for the selected team (from local state for current round editing)
   function getR1Points(): number {
@@ -378,11 +398,15 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
       const allEntered = players.every((p) => hs[p.id]?.strokes > 0)
       if (!allEntered) return
 
-      const playerData = players.map((p) => ({
-        strokes: hs[p.id].strokes,
-        moneyball_used: hs[p.id].moneyball_used,
-        moneyball_lost: hs[p.id].moneyball_lost,
-      }))
+      const playerData = players.map((p) => {
+        const gross = hs[p.id].strokes
+        const net = handicapsActive ? getNetScore(gross, getPlayerStrokeMap(p.id), hole.stroke_index) : gross
+        return {
+          strokes: net,
+          moneyball_used: hs[p.id].moneyball_used,
+          moneyball_lost: hs[p.id].moneyball_lost,
+        }
+      })
 
       total += round1HolePoints(playerData, hole.par).points
     })
@@ -401,11 +425,15 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
           teamR1.find((s) => s.hole_number === hole.hole_number && s.player_id === pid)
         )
         if (holeScores.every((s) => s && s.strokes > 0) && holeScores.length >= 4) {
-          const pd = holeScores.map((s) => ({
-            strokes: s!.strokes,
-            moneyball_used: s!.moneyball_used,
-            moneyball_lost: s!.moneyball_lost,
-          }))
+          const pd = holeScores.map((s) => {
+            const gross = s!.strokes
+            const net = handicapsActive ? getNetScore(gross, getPlayerStrokeMap(s!.player_id!), hole.stroke_index) : gross
+            return {
+              strokes: net,
+              moneyball_used: s!.moneyball_used,
+              moneyball_lost: s!.moneyball_lost,
+            }
+          })
           pts += round1HolePoints(pd, hole.par).points
         }
       })
@@ -430,7 +458,10 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
             const score = r2Scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)
             const player = allPlayers.find((p) => p.id === pid)
             const raw = score?.strokes || 0
-            const adjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+            const mbAdjusted = (score?.moneyball_used && !score?.moneyball_lost && raw > 0) ? raw - 1 : raw
+            const adjusted = handicapsActive && mbAdjusted > 0
+              ? getNetScore(mbAdjusted, getPlayerStrokeMap(pid), hole.stroke_index)
+              : mbAdjusted
             return { playerId: pid, teamId: player?.team_id || "", strokes: adjusted }
           })
           if (holePlayers.every((p) => p.strokes > 0)) {
@@ -447,15 +478,31 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
     }
 
     if (round === 3) {
-      // R3 Scramble
+      // R3 Scramble — team handicap = avg of players, play off lowest team
       const teamR3 = allScores.filter((s) => s.team_id === teamId && s.round_number === 3)
       const r3HoleScores: { [h: number]: number } = {}
       teamR3.forEach((s) => { if (s.strokes > 0) r3HoleScores[s.hole_number] = s.strokes })
 
+      let teamStrokeMap = new Map<number, number>()
+      if (handicapsActive) {
+        const allTeamHandicaps = teams.map((t) => {
+          const playerHcps = allPlayers
+            .filter((p) => p.team_id === t.id)
+            .map((p) => p.handicap)
+          return { teamId: t.id, hcp: calculateTeamHandicap(playerHcps) }
+        })
+        const lowestTeamHcp = Math.min(...allTeamHandicaps.map((t) => t.hcp ?? 0))
+        const thisTeamHcp = allTeamHandicaps.find((t) => t.teamId === teamId)?.hcp ?? 0
+        teamStrokeMap = calculateStrokeAllowance(thisTeamHcp, lowestTeamHcp)
+      }
+
       let pts = 0
       holes.forEach((hole) => {
         const strokes = r3HoleScores[hole.hole_number]
-        if (strokes && strokes > 0) pts += adjustedStablefordPoints(strokes, hole.par)
+        if (strokes && strokes > 0) {
+          const net = handicapsActive ? getNetScore(strokes, teamStrokeMap, hole.stroke_index) : strokes
+          pts += adjustedStablefordPoints(net, hole.par)
+        }
       })
       return pts
     }
@@ -531,11 +578,15 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
   let holePoints: number | null = null
   let bestScore: number | null = null
   if (allEntered) {
-    const playerData = selectedTeam.players.map((p) => ({
-      strokes: holeScores[p.id].strokes,
-      moneyball_used: holeScores[p.id].moneyball_used,
-      moneyball_lost: holeScores[p.id].moneyball_lost,
-    }))
+    const playerData = selectedTeam.players.map((p) => {
+      const gross = holeScores[p.id].strokes
+      const net = handicapsActive ? getNetScore(gross, getPlayerStrokeMap(p.id), hole.stroke_index) : gross
+      return {
+        strokes: net,
+        moneyball_used: holeScores[p.id].moneyball_used,
+        moneyball_lost: holeScores[p.id].moneyball_lost,
+      }
+    })
     const result = round1HolePoints(playerData, hole.par)
     holePoints = result.points
     bestScore = result.bestScore
@@ -684,8 +735,10 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
         <div className="max-w-md mx-auto flex flex-col gap-3">
           {selectedTeam.players.map((player) => {
             const ps = holeScores[player.id] || { strokes: 0, moneyball_used: false, moneyball_lost: false }
+            const hcpStrokes = getPlayerHcpStrokes(player.id, hole.stroke_index)
+            const netStrokes = ps.strokes > 0 && handicapsActive ? ps.strokes - hcpStrokes : ps.strokes
             const isBestBall = allEntered && bestScore !== null &&
-              (ps.strokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)) === bestScore
+              (netStrokes - (ps.moneyball_used && !ps.moneyball_lost ? 1 : 0)) === bestScore
 
             // Per-player moneyball state
             const playerMbHole = moneyballByPlayer[player.id] ?? null
@@ -700,7 +753,14 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-green-900 text-sm">{player.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-green-900 text-sm">{player.name}</span>
+                    {handicapsActive && hcpStrokes > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+                        -{hcpStrokes}
+                      </span>
+                    )}
+                  </div>
                   {isBestBall && (
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
                       Best Ball
@@ -767,6 +827,9 @@ export default function ScoreEntryPage({ params }: { params: Promise<{ id: strin
                     {scoreLabel(ps.strokes, hole.par)}
                     {ps.moneyball_used && !ps.moneyball_lost && (
                       <span className="text-yellow-600"> (adjusted: {ps.strokes - 1})</span>
+                    )}
+                    {handicapsActive && hcpStrokes > 0 && (
+                      <span className="text-blue-600"> &middot; net: {netStrokes}</span>
                     )}
                   </p>
                 )}

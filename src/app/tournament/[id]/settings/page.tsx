@@ -68,16 +68,21 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  type HoleRow = { id: string; hole_number: number; par: number; stroke_index: number | null }
+
   // Raw data
   const [tournamentRaw, setTournamentRaw] = useState({ name: "", year: 0, date: "" })
+  const [useHandicaps, setUseHandicaps] = useState(false)
   const [courseId, setCourseId] = useState<string | null>(null)
   const [course, setCourse] = useState<{ name: string } | null>(null)
+  const [holesRaw, setHolesRaw] = useState<HoleRow[]>([])
   const [rounds, setRounds] = useState<RoundSetting[]>([])
   const [teams, setTeams] = useState<Team[]>([])
 
   // Draft states
   const [draftDetails, setDraftDetails] = useState({ name: "", year: 0, date: "" })
   const [draftCourse, setDraftCourse] = useState("")
+  const [draftHoles, setDraftHoles] = useState<HoleRow[]>([])
   const [draftRounds, setDraftRounds] = useState<RoundSetting[]>([])
   const [draftTeams, setDraftTeams] = useState<Team[]>([])
 
@@ -85,12 +90,13 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
     const fetchData = async () => {
       const { data: tournament } = await supabase
         .from("tournaments")
-        .select("name, year, date, course_id")
+        .select("name, year, date, course_id, use_handicaps")
         .eq("id", tournamentId)
         .single()
 
       if (tournament) {
         setTournamentRaw({ name: tournament.name, year: tournament.year, date: tournament.date || "" })
+        setUseHandicaps(tournament.use_handicaps)
         setCourseId(tournament.course_id)
 
         if (tournament.course_id) {
@@ -100,6 +106,13 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
             .eq("id", tournament.course_id)
             .single()
           if (courseData) setCourse(courseData)
+
+          const { data: holesData } = await supabase
+            .from("holes")
+            .select("id, hole_number, par, stroke_index")
+            .eq("course_id", tournament.course_id)
+            .order("hole_number")
+          if (holesData) setHolesRaw(holesData)
         }
       }
 
@@ -156,7 +169,13 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
     if (courseId) {
       await supabase.from("courses").update({ name: draftCourse }).eq("id", courseId)
     }
+    for (const hole of draftHoles) {
+      await supabase.from("holes")
+        .update({ par: hole.par, stroke_index: hole.stroke_index })
+        .eq("id", hole.id)
+    }
     setCourse({ name: draftCourse })
+    setHolesRaw(JSON.parse(JSON.stringify(draftHoles)))
     setSaving(false)
     setEditingSection(null)
   }
@@ -198,6 +217,7 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
 
   function openCourse() {
     setDraftCourse(course?.name || "")
+    setDraftHoles(JSON.parse(JSON.stringify(holesRaw)))
     setEditingSection("course")
   }
 
@@ -314,8 +334,63 @@ function SettingsContent({ params }: { params: Promise<{ id: string }> }) {
                     type="text"
                     value={draftCourse}
                     onChange={(e) => setDraftCourse(e.target.value)}
-                    className="w-full rounded-lg border border-green-300 px-3 py-2 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-lg border border-green-300 px-3 py-2 text-sm bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 mb-4"
                   />
+
+                  {draftHoles.length > 0 && (
+                    <div>
+                      <div className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 text-xs font-semibold text-green-700 mb-1.5">
+                        <span>#</span>
+                        <span>Par</span>
+                        <span>HCP</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {draftHoles.map((hole, i) => (
+                          <div key={hole.id} className="grid grid-cols-[1.5rem_2.5rem_3rem] gap-2 items-center">
+                            <span className="text-sm font-bold text-green-900">{hole.hole_number}</span>
+                            <select
+                              value={hole.par}
+                              onChange={(e) => {
+                                const updated = [...draftHoles]
+                                updated[i] = { ...updated[i], par: parseInt(e.target.value) }
+                                setDraftHoles(updated)
+                              }}
+                              className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                              <option value={3}>3</option>
+                              <option value={4}>4</option>
+                              <option value={5}>5</option>
+                            </select>
+                            <select
+                              value={hole.stroke_index ?? ""}
+                              onChange={(e) => {
+                                const updated = [...draftHoles]
+                                updated[i] = { ...updated[i], stroke_index: e.target.value === "" ? null : parseInt(e.target.value) }
+                                setDraftHoles(updated)
+                              }}
+                              className="w-full rounded-lg border border-green-300 py-1.5 text-sm text-center bg-white text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                              <option value="">—</option>
+                              {Array.from({ length: 18 }, (_, n) => (
+                                <option key={n + 1} value={n + 1}>{n + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                      {useHandicaps && (() => {
+                        const indexes = draftHoles.map((h) => h.stroke_index).filter((si): si is number => si !== null)
+                        const hasDupes = new Set(indexes).size < indexes.length
+                        const incomplete = indexes.length < 18
+                        return (hasDupes || incomplete) ? (
+                          <p className="text-sm text-red-600 mt-2">
+                            {hasDupes ? "Each HCP value must be unique." : "All holes need an HCP value for handicap scoring."}
+                          </p>
+                        ) : null
+                      })()}
+                    </div>
+                  )}
+
                   <SaveCancelRow onSave={saveCourse} onCancel={() => setEditingSection(null)} saving={saving} />
                 </>
               ) : (
