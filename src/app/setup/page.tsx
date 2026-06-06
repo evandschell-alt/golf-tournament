@@ -718,16 +718,28 @@ function SetupContent() {
           const player = team.players[j]
           let personId = player.personId
 
-          // If no existing person was selected, create a new people record
+          // If no existing person was selected, look for an exact name match first
           if (!personId) {
-            const { data: newPerson, error: personError } = await supabase
+            const trimmedName = player.displayName.trim()
+            const { data: existing } = await supabase
               .from("people")
-              .insert({ display_name: player.displayName.trim() })
-              .select()
+              .select("id")
+              .eq("display_name", trimmedName)
+              .limit(1)
               .single()
 
-            if (personError) throw new Error("Failed to save person: " + personError.message)
-            personId = newPerson.id
+            if (existing) {
+              personId = existing.id
+            } else {
+              const { data: newPerson, error: personError } = await supabase
+                .from("people")
+                .insert({ display_name: trimmedName })
+                .select()
+                .single()
+
+              if (personError) throw new Error("Failed to save person: " + personError.message)
+              personId = newPerson.id
+            }
           }
 
           // Create the tournament_players row linking person → team → tournament
