@@ -63,10 +63,12 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
     setSubmitting(true)
     setError(null)
 
+    let step = "start"
     try {
       let photoUrl: string | null = null
 
       if (photo) {
+        step = "photo-upload"
         const formData = new FormData()
         formData.append("file", photo)
         formData.append("tournamentId", tournamentId)
@@ -83,6 +85,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         photoUrl = json.publicUrl
       }
 
+      step = "fetch-close"
       const closeRes = await fetch("/api/close-tournament", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,6 +97,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         }),
       })
 
+      step = "check-response"
       if (!closeRes.ok) {
         const text = await closeRes.text()
         let msg = `Server error (${closeRes.status})`
@@ -103,9 +107,10 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         return
       }
 
+      step = "redirect"
       window.location.href = "/"
     } catch (err) {
-      setError(`[v5] ${err instanceof Error ? err.message : String(err)}`)
+      setError(`[v6 step:${step}] ${err instanceof Error ? err.message : String(err)}`)
       setSubmitting(false)
     }
   }
