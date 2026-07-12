@@ -68,13 +68,26 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
       let photoUrl: string | null = null
 
       if (photo) {
-        step = "photo-upload"
+        step = "photo-build-form"
         const formData = new FormData()
         formData.append("file", photo)
         formData.append("tournamentId", tournamentId)
 
+        step = "photo-fetch"
         const res = await fetch("/api/upload-photo", { method: "POST", body: formData })
-        const json = await res.json()
+
+        step = "photo-read-response"
+        const text = await res.text()
+
+        step = "photo-parse"
+        let json: { publicUrl?: string; error?: string }
+        try {
+          json = JSON.parse(text)
+        } catch {
+          setError(`Photo upload returned invalid response (${res.status}): ${text.slice(0, 100)}`)
+          setSubmitting(false)
+          return
+        }
 
         if (!res.ok) {
           setError(`Photo upload failed: ${json.error}`)
@@ -82,7 +95,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
           return
         }
 
-        photoUrl = json.publicUrl
+        photoUrl = json.publicUrl ?? null
       }
 
       step = "fetch-close"
