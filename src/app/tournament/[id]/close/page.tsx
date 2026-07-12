@@ -105,7 +105,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
 
       window.location.href = "/"
     } catch (err) {
-      setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
+      setError(`[v5] ${err instanceof Error ? err.message : String(err)}`)
       setSubmitting(false)
     }
   }
