@@ -108,7 +108,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
       router.push("/")
     } catch (err) {
       console.error("Close failed:", err)
-      setError("Something went wrong. Please try again.")
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
       setSubmitting(false)
     }
   }

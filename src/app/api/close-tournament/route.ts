@@ -11,27 +11,35 @@ export async function POST(request: NextRequest) {
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 
-  const body = await request.json()
-  const { tournamentId, winnerTeamName, winnerPoints, winnerPhotoUrl } = body
+  try {
+    const body = await request.json()
+    const { tournamentId, winnerTeamName, winnerPoints, winnerPhotoUrl } = body
 
-  if (!tournamentId || !winnerTeamName) {
-    return NextResponse.json({ error: "Missing tournamentId or winnerTeamName" }, { status: 400 })
+    if (!tournamentId || !winnerTeamName) {
+      return NextResponse.json({ error: "Missing tournamentId or winnerTeamName" }, { status: 400 })
+    }
+
+    const { error } = await supabaseAdmin
+      .from("tournaments")
+      .update({
+        is_locked: true,
+        winner_team_name: winnerTeamName,
+        winner_points: winnerPoints ?? null,
+        winner_photo_url: winnerPhotoUrl ?? null,
+      })
+      .eq("id", tournamentId)
+
+    if (error) {
+      console.error("Close tournament error:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error("Close tournament unexpected error:", err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    )
   }
-
-  const { error } = await supabaseAdmin
-    .from("tournaments")
-    .update({
-      is_locked: true,
-      winner_team_name: winnerTeamName,
-      winner_points: winnerPoints ?? null,
-      winner_photo_url: winnerPhotoUrl ?? null,
-    })
-    .eq("id", tournamentId)
-
-  if (error) {
-    console.error("Close tournament error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true })
 }
