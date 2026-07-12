@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, use } from "react"
-import { supabase } from "@/lib/supabase"
 import OrganizerGuard from "@/components/OrganizerGuard"
 
 function isHeic(file: File) {
@@ -84,18 +83,22 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         photoUrl = json.publicUrl
       }
 
-      const { error: updateError } = await supabase
-        .from("tournaments")
-        .update({
-          is_locked: true,
-          winner_team_name: winnerName.trim(),
-          winner_points: points ? parseFloat(points) : null,
-          winner_photo_url: photoUrl,
-        })
-        .eq("id", tournamentId)
+      const closeRes = await fetch("/api/close-tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId,
+          winnerTeamName: winnerName.trim(),
+          winnerPoints: points ? parseFloat(points) : null,
+          winnerPhotoUrl: photoUrl,
+        }),
+      })
 
-      if (updateError) {
-        setError(`Close failed: ${updateError.message}`)
+      if (!closeRes.ok) {
+        const text = await closeRes.text()
+        let msg = `Server error (${closeRes.status})`
+        try { msg = JSON.parse(text).error || msg } catch {}
+        setError(msg)
         setSubmitting(false)
         return
       }
