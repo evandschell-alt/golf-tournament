@@ -98,9 +98,12 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
       })
 
       if (!res2.ok) {
-        const json2 = await res2.json()
-        console.error("Close error:", json2.error)
-        setError(json2.error || "Something went wrong. Please try again.")
+        let msg = `Server error (${res2.status})`
+        try {
+          const json2 = await res2.json()
+          msg = json2.error || msg
+        } catch {}
+        setError(msg)
         setSubmitting(false)
         return
       }
