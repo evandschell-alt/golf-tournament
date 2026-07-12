@@ -98,28 +98,22 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
     setSubmitting(true)
     setError(null)
 
-    let step = "start"
     try {
       let photoUrl: string | null = null
 
       if (photo) {
-        step = "photo-build-form"
         const formData = new FormData()
         formData.append("file", photo)
         formData.append("tournamentId", tournamentId)
 
-        step = "photo-fetch"
         const res = await fetch("/api/upload-photo", { method: "POST", body: formData })
-
-        step = "photo-read-response"
         const text = await res.text()
 
-        step = "photo-parse"
         let json: { publicUrl?: string; error?: string }
         try {
           json = JSON.parse(text)
         } catch {
-          setError(`Photo upload returned invalid response (${res.status}): ${text.slice(0, 100)}`)
+          setError(`Photo upload failed (${res.status}). Try a smaller photo.`)
           setSubmitting(false)
           return
         }
@@ -133,7 +127,6 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         photoUrl = json.publicUrl ?? null
       }
 
-      step = "fetch-close"
       const closeRes = await fetch("/api/close-tournament", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,20 +138,18 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         }),
       })
 
-      step = "check-response"
       if (!closeRes.ok) {
         const text = await closeRes.text()
-        let msg = `Server error (${closeRes.status})`
+        let msg = "Something went wrong. Please try again."
         try { msg = JSON.parse(text).error || msg } catch {}
         setError(msg)
         setSubmitting(false)
         return
       }
 
-      step = "redirect"
       window.location.href = "/"
     } catch (err) {
-      setError(`[v6 step:${step}] ${err instanceof Error ? err.message : String(err)}`)
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
       setSubmitting(false)
     }
   }
