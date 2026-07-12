@@ -2,7 +2,6 @@
 
 import { useState, use } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
 import OrganizerGuard from "@/components/OrganizerGuard"
 
 function isHeic(file: File) {
@@ -66,43 +65,52 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
     setSubmitting(true)
     setError(null)
 
-    let photoUrl: string | null = null
+    try {
+      let photoUrl: string | null = null
 
-    if (photo) {
-      const formData = new FormData()
-      formData.append("file", photo)
-      formData.append("tournamentId", tournamentId)
+      if (photo) {
+        const formData = new FormData()
+        formData.append("file", photo)
+        formData.append("tournamentId", tournamentId)
 
-      const res = await fetch("/api/upload-photo", { method: "POST", body: formData })
-      const json = await res.json()
+        const res = await fetch("/api/upload-photo", { method: "POST", body: formData })
+        const json = await res.json()
 
-      if (!res.ok) {
-        console.error("Upload error:", json.error)
-        setError(`Photo upload failed: ${json.error}`)
+        if (!res.ok) {
+          console.error("Upload error:", json.error)
+          setError(`Photo upload failed: ${json.error}`)
+          setSubmitting(false)
+          return
+        }
+
+        photoUrl = json.publicUrl
+      }
+
+      const res2 = await fetch("/api/close-tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId,
+          winnerTeamName: winnerName.trim(),
+          winnerPoints: points ? parseFloat(points) : null,
+          winnerPhotoUrl: photoUrl,
+        }),
+      })
+
+      if (!res2.ok) {
+        const json2 = await res2.json()
+        console.error("Close error:", json2.error)
+        setError(json2.error || "Something went wrong. Please try again.")
         setSubmitting(false)
         return
       }
 
-      photoUrl = json.publicUrl
-    }
-
-    const { error: updateError } = await supabase
-      .from("tournaments")
-      .update({
-        is_locked: true,
-        winner_team_name: winnerName.trim(),
-        winner_points: points ? parseFloat(points) : null,
-        winner_photo_url: photoUrl,
-      })
-      .eq("id", tournamentId)
-
-    if (updateError) {
+      router.push("/")
+    } catch (err) {
+      console.error("Close failed:", err)
       setError("Something went wrong. Please try again.")
       setSubmitting(false)
-      return
     }
-
-    router.push("/")
   }
 
   return (
