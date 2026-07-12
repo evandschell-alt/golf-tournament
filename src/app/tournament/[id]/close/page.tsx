@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, use } from "react"
-import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 import OrganizerGuard from "@/components/OrganizerGuard"
 
 function isHeic(file: File) {
@@ -22,7 +22,6 @@ export default function CloseTournamentPage({ params }: { params: Promise<{ id: 
 
 function CloseContent({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params)
-  const router = useRouter()
 
   const [winnerName, setWinnerName] = useState("")
   const [points, setPoints] = useState("")
@@ -77,7 +76,6 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         const json = await res.json()
 
         if (!res.ok) {
-          console.error("Upload error:", json.error)
           setError(`Photo upload failed: ${json.error}`)
           setSubmitting(false)
           return
@@ -86,32 +84,25 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         photoUrl = json.publicUrl
       }
 
-      const res2 = await fetch("/api/close-tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tournamentId,
-          winnerTeamName: winnerName.trim(),
-          winnerPoints: points ? parseFloat(points) : null,
-          winnerPhotoUrl: photoUrl,
-        }),
-      })
+      const { error: updateError } = await supabase
+        .from("tournaments")
+        .update({
+          is_locked: true,
+          winner_team_name: winnerName.trim(),
+          winner_points: points ? parseFloat(points) : null,
+          winner_photo_url: photoUrl,
+        })
+        .eq("id", tournamentId)
 
-      if (!res2.ok) {
-        let msg = `Server error (${res2.status})`
-        try {
-          const json2 = await res2.json()
-          msg = json2.error || msg
-        } catch {}
-        setError(msg)
+      if (updateError) {
+        setError(`Close failed: ${updateError.message}`)
         setSubmitting(false)
         return
       }
 
-      router.push("/")
+      window.location.href = "/"
     } catch (err) {
-      console.error("Close failed:", err)
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
+      setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
       setSubmitting(false)
     }
   }
@@ -233,7 +224,7 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
           )}
 
           <button
-            onClick={() => router.back()}
+            onClick={() => window.history.back()}
             className="w-full py-3 text-sm font-medium text-green-600 hover:text-green-800 transition-colors"
           >
             Cancel
