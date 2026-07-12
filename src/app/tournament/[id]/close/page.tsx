@@ -11,6 +11,33 @@ function isHeic(file: File) {
   )
 }
 
+function compressImage(file: File, maxWidth = 1200, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width)
+        width = maxWidth
+      }
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Compression failed"))
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }))
+        },
+        "image/jpeg",
+        quality,
+      )
+    }
+    img.onerror = () => reject(new Error("Could not read image"))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function CloseTournamentPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <OrganizerGuard>
@@ -46,6 +73,14 @@ function CloseContent({ params }: { params: Promise<{ id: string }> }) {
         setError("Could not process this photo format. Please try a different photo.")
         return
       }
+    }
+
+    try {
+      finalFile = await compressImage(finalFile)
+    } catch (compErr) {
+      console.error("Compression failed:", compErr)
+      setError("Could not compress this photo. Please try a different one.")
+      return
     }
 
     setPhoto(finalFile)
